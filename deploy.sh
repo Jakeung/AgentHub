@@ -17,6 +17,85 @@ log_info()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+install_docker() {
+    if command -v docker &> /dev/null; then
+        return 0
+    fi
+
+    log_info "Docker 未安装，正在自动安装..."
+
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq ca-certificates curl gnupg
+        sudo install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null
+        sudo chmod a+r /etc/apt/keyrings/docker.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    elif command -v yum &> /dev/null; then
+        sudo yum install -y yum-utils
+        sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    else
+        log_warn "无法自动安装 Docker，尝试通用安装脚本..."
+        curl -fsSL https://get.docker.com | bash
+    fi
+
+    sudo systemctl enable docker
+    sudo systemctl start docker
+
+    if [ "$(id -u)" -ne 0 ]; then
+        sudo usermod -aG docker "$USER"
+        log_warn "已将当前用户加入 docker 组，可能需要重新登录"
+    fi
+
+    log_info "Docker 安装完成"
+}
+
+install_compose() {
+    if docker compose version &> /dev/null 2>&1; then
+        return 0
+    fi
+    if command -v docker-compose &> /dev/null; then
+        return 0
+    fi
+
+    log_info "Docker Compose 未安装，正在安装..."
+
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get install -y -qq docker-compose-plugin 2>/dev/null || true
+    elif command -v yum &> /dev/null; then
+        sudo yum install -y docker-compose-plugin 2>/dev/null || true
+    fi
+
+    if ! docker compose version &> /dev/null 2>&1; then
+        log_info "安装独立版 docker-compose..."
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4 2>/dev/null || echo "v2.27.0")
+        sudo curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose 2>/dev/null
+        sudo chmod +x /usr/local/bin/docker-compose
+    fi
+
+    log_info "Docker Compose 安装完成"
+}
+
+check_docker() {
+    install_docker
+    install_compose
+
+    if docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    else
+        log_error "Docker Compose 安装失败，请手动安装"
+        exit 1
+    fi
+
+    log_info "Docker: $(docker --version | head -1)"
+    log_info "Compose: $($COMPOSE_CMD version | head -1)"
+}
+
 check_env() {
     if [ ! -f "$SCRIPT_DIR/.env" ]; then
         log_info ".env 文件不存在，自动生成..."
@@ -37,25 +116,6 @@ check_env() {
         log_info "已自动生成密钥并写入 .env"
         log_warn "如需自定义 CORS_ORIGINS 或端口，请编辑 .env 后重新运行"
     fi
-}
-
-check_docker() {
-    if ! command -v docker &> /dev/null; then
-        log_error "Docker 未安装"
-        exit 1
-    fi
-
-    if docker compose version &> /dev/null; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose &> /dev/null; then
-        COMPOSE_CMD="docker-compose"
-    else
-        log_error "Docker Compose 未安装"
-        exit 1
-    fi
-
-    log_info "Docker: $(docker --version | head -1)"
-    log_info "Compose: $($COMPOSE_CMD version | head -1)"
 }
 
 setup_dirs() {
@@ -110,7 +170,7 @@ start_services() {
 }
 
 show_logs() {
-    log_info "显示日志（Ctrl+C 退出）..."
+    check_docker
     $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" logs -f --tail=50
 }
 
@@ -121,7 +181,7 @@ cleanup() {
 }
 
 stop_services() {
-    log_info "停止服务..."
+    check_docker
     $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" down
     log_info "服务已停止"
 }
@@ -134,7 +194,6 @@ export_images() {
     docker save tecnativa/docker-socket-proxy:latest -o "$SCRIPT_DIR/images/docker-socket-proxy.tar"
     log_info "镜像已导出到 images/ 目录"
     ls -lh "$SCRIPT_DIR/images/"
-    log_info "打包部署时将 images/ 目录一起打包即可"
 }
 
 main() {
