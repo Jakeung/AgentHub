@@ -1,0 +1,13 @@
+data/
+images/
+.env
+*.db
+*.db-shm
+*.db-wal
+.git/
+backend/__pycache__
+backend/tests/
+backend/data/
+backend/.pytest_cache
+web/node_modules
+web/dist
