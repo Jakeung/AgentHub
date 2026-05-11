@@ -110,13 +110,13 @@ async def login(request: Request, req: LoginRequest, db: AsyncSession = Depends(
     }))
     from app.core.config import get_settings
     settings = get_settings()
-    is_prod = settings.ENVIRONMENT == "production"
+    use_secure = settings.ENABLE_HTTPS
     response.set_cookie(
         key="auth-token",
         value=token,
         httponly=True,
-        secure=is_prod,
-        samesite="strict",
+        secure=use_secure,
+        samesite="lax",
         path="/",
         max_age=86400,
     )
