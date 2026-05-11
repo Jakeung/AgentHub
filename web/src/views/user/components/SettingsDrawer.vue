@@ -199,11 +199,13 @@ async function startWeixinQr() {
   try {
     const res: any = await channelApi.weixinQrStart()
     if (res.code === 0) {
-      let qrUrl = res.data.qr_url || ''
-      if (qrUrl && !qrUrl.startsWith('http') && !qrUrl.startsWith('data:')) {
-        qrUrl = await QRCode.toDataURL(qrUrl, { width: 200, margin: 2 })
+      const qrText = res.data.qrcode || res.data.qr_url || ''
+      if (!qrText) {
+        ElMessage.error('获取二维码失败: 返回数据为空')
+        return
       }
-      weixinQrUrl.value = qrUrl
+      const qrDataUrl = await QRCode.toDataURL(qrText, { width: 200, margin: 2 })
+      weixinQrUrl.value = qrDataUrl
       pollWeixinStatus()
     } else {
       ElMessage.error(res.message || '获取二维码失败')
@@ -378,10 +380,7 @@ defineExpose({ selectedModel, onOpen })
             </div>
             <div v-else-if="weixinQrUrl" style="text-align:center">
               <p class="settings-hint">请使用微信扫描二维码</p>
-              <img :src="weixinQrUrl" v-if="weixinQrUrl.startsWith('http') || weixinQrUrl.startsWith('data:')" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" />
-              <div v-else style="padding:16px;background:#f1f3f4;border-radius:8px;word-break:break-all;font-size:12px;color:#5f6368">
-                {{ weixinQrUrl }}
-              </div>
+              <img :src="weixinQrUrl" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" />
               <p class="settings-hint" style="margin-top:8px">
                 {{ weixinQrStatus === 'scanned' ? '✅ 已扫码，请在微信确认...' : weixinQrStatus === 'confirmed' ? '🎉 绑定成功！' : '等待扫码...' }}
               </p>

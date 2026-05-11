@@ -266,7 +266,7 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard-page {
-  max-width: 1200px;
+  width: 100%;
 }
 
 .stats-row {
