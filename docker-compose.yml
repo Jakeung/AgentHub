@@ -11,7 +11,7 @@ services:
       IMAGES: 1
       NETWORKS: 0
       VOLUMES: 0
-      EXEC: 0
+      EXEC: 1
       POST: 1
       DELETE: 1
       BUILD: 0
