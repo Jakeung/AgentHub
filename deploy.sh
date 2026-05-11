@@ -3,7 +3,7 @@
 set -e
 
 # AgentHub 部署脚本
-# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|update|pull-hermes|export-images]
+# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|update|update-local|update-git|pull-hermes|export-images]
 
 ENVIRONMENT=${1:-prod}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,9 +124,12 @@ setup_dirs() {
 }
 
 setup_network() {
-    if ! docker network inspect agenthub-network &> /dev/null 2>&1; then
-        log_info "创建 Docker 网络 agenthub-network..."
-        docker network create agenthub-network --subnet=172.20.0.0/16 || true
+    if docker network inspect agenthub-network &> /dev/null 2>&1; then
+        LABELS=$(docker network inspect agenthub-network --format '{{index .Labels "com.docker.compose.network"}}' 2>/dev/null || echo "")
+        if [ -z "$LABELS" ]; then
+            log_warn "检测到手动创建的 agenthub-network，移除后由 Compose 重建..."
+            docker network rm agenthub-network 2>/dev/null || true
+        fi
     fi
 }
 
@@ -135,8 +138,13 @@ load_images() {
     if [ -d "$IMAGES_DIR" ]; then
         for img_file in "$IMAGES_DIR"/*.tar; do
             if [ -f "$img_file" ]; then
-                log_info "导入镜像: $(basename $img_file)..."
-                docker load -i "$img_file"
+                IMG_TAG=$(tar -xf "$img_file" manifest.json -O 2>/dev/null | sed -n 's/.*"RepoTags":\["\([^"]*\)".*/\1/p')
+                if [ -n "$IMG_TAG" ] && docker image inspect "$IMG_TAG" &>/dev/null; then
+                    log_info "镜像已存在，跳过: $(basename $img_file)"
+                else
+                    log_info "导入镜像: $(basename $img_file)..."
+                    docker load -i "$img_file"
+                fi
             fi
         done
     fi
@@ -175,14 +183,24 @@ pull_hermes() {
 
     load_images
 
+    # Tag current image with date before pulling new one
+    if [ "$OLD_ID" != "none" ]; then
+        DATE_TAG="v$(date +%Y%m%d)"
+        REPO="nousresearch/hermes-agent"
+        if ! docker image inspect "${REPO}:${DATE_TAG}" &>/dev/null; then
+            docker tag "$HERMES_IMAGE" "${REPO}:${DATE_TAG}"
+            log_info "已备份当前镜像为 ${REPO}:${DATE_TAG}"
+        fi
+    fi
+
     if docker pull "$HERMES_IMAGE"; then
         NEW_ID=$(docker image inspect "$HERMES_IMAGE" --format '{{.Id}}' 2>/dev/null || echo "")
         if [ "$OLD_ID" == "$NEW_ID" ]; then
             log_info "已是最新版本，无需更新"
         else
             log_info "已更新到新版本"
-            log_info "旧镜像 ID: ${OLD_ID:0:19}"
-            log_info "新镜像 ID: ${NEW_ID:0:19}"
+            log_info "旧镜像: ${REPO}:${DATE_TAG} (${OLD_ID:0:19})"
+            log_info "新镜像: ${HERMES_IMAGE} (${NEW_ID:0:19})"
             log_warn "请在管理界面通知用户升级实例"
         fi
     else
@@ -244,17 +262,7 @@ export_images() {
     ls -lh "$SCRIPT_DIR/images/"
 }
 
-update_services() {
-    log_info "====== AgentHub 更新 ======"
-    check_docker
-    setup_dirs
-
-    if [ -d "$SCRIPT_DIR/.git" ]; then
-        log_info "拉取最新代码..."
-        cd "$SCRIPT_DIR"
-        git pull origin main || { log_error "Git 拉取失败"; exit 1; }
-    fi
-
+_do_build_and_restart() {
     load_images
 
     log_info "重新构建镜像（增量构建）..."
@@ -278,6 +286,49 @@ update_services() {
     done
     log_warn "服务启动超时，查看日志:"
     $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" logs backend --tail=30
+}
+
+update_services() {
+    log_info "====== AgentHub 更新（自动检测） ======"
+    check_docker
+    setup_dirs
+
+    if [ -d "$SCRIPT_DIR/.git" ]; then
+        log_info "检测到 Git 仓库，拉取最新代码..."
+        cd "$SCRIPT_DIR"
+        git pull origin main || { log_error "Git 拉取失败"; exit 1; }
+    else
+        log_warn "未检测到 .git 目录，使用本地代码更新"
+        log_warn "如需从 Git 拉取，请用: bash deploy.sh prod update-git"
+    fi
+
+    _do_build_and_restart
+}
+
+update_local() {
+    log_info "====== AgentHub 本地更新 ======"
+    check_docker
+    setup_dirs
+    log_info "跳过 Git 拉取，使用本地代码构建"
+    _do_build_and_restart
+}
+
+update_git() {
+    log_info "====== AgentHub Git 更新 ======"
+    check_docker
+    setup_dirs
+
+    if [ ! -d "$SCRIPT_DIR/.git" ]; then
+        log_error "当前目录不是 Git 仓库，无法使用 update-git"
+        log_info "请先执行: git clone <repo-url> $SCRIPT_DIR"
+        exit 1
+    fi
+
+    log_info "拉取最新代码..."
+    cd "$SCRIPT_DIR"
+    git pull origin main || { log_error "Git 拉取失败"; exit 1; }
+
+    _do_build_and_restart
 }
 
 main() {
@@ -309,6 +360,8 @@ case "${2:-}" in
     stop)           stop_services ;;
     cleanup)        cleanup ;;
     update)         update_services ;;
+    update-local)   update_local ;;
+    update-git)     update_git ;;
     pull-hermes)    pull_hermes ;;
     export-images)  export_images ;;
     *)              main ;;
