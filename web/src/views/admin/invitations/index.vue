@@ -201,13 +201,33 @@ async function handleDelete(row: InvitationCode) {
   loadData()
 }
 
+function fallbackCopy(text: string) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+}
+
 function copyCode(code: string) {
-  navigator.clipboard.writeText(code)
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(code).catch(() => fallbackCopy(code))
+  } else {
+    fallbackCopy(code)
+  }
   ElMessage.success('已复制到剪贴板')
 }
 
 function copyAllCodes() {
-  navigator.clipboard.writeText(generatedCodes.value.join('\n'))
+  const text = generatedCodes.value.join('\n')
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text))
+  } else {
+    fallbackCopy(text)
+  }
   ElMessage.success('已复制全部邀请码')
 }
 
