@@ -307,6 +307,9 @@ async def weixin_qr_start(request: Request):
             if not qrcode_value:
                 return error(-1, "获取二维码失败: 返回数据不完整")
 
+            if qrcode_url and not qrcode_url.startswith(("http", "data:")):
+                qrcode_url = f"data:image/png;base64,{qrcode_url}"
+
             # Store session
             _weixin_qr_sessions[user_id] = {
                 "qrcode": qrcode_value,

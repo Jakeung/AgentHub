@@ -372,7 +372,7 @@ defineExpose({ selectedModel, onOpen })
             </div>
             <div v-else-if="weixinQrUrl" style="text-align:center">
               <p class="settings-hint">请使用微信扫描二维码</p>
-              <img :src="weixinQrUrl" v-if="weixinQrUrl.startsWith('http')" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" />
+              <img :src="weixinQrUrl" v-if="weixinQrUrl.startsWith('http') || weixinQrUrl.startsWith('data:')" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" />
               <div v-else style="padding:16px;background:#f1f3f4;border-radius:8px;word-break:break-all;font-size:12px;color:#5f6368">
                 {{ weixinQrUrl }}
               </div>
