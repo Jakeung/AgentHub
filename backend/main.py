@@ -22,6 +22,7 @@ from app.api import admin_audit
 from app.api import chat
 from app.api import secrets
 from app.api import admin_settings
+from app.api import admin_invitations
 from app.api import channels
 
 settings = get_settings()
@@ -110,6 +111,7 @@ app.include_router(chat.router)
 app.include_router(secrets.router)
 app.include_router(admin_settings.router)
 app.include_router(admin_settings.user_router)
+app.include_router(admin_invitations.router)
 app.include_router(channels.router)
 
 

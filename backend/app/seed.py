@@ -11,6 +11,7 @@ from app.models.audit import SysOperationLog, InstanceRuntimeLog
 from app.models.task import AsyncTask
 from app.models.conversation import Conversation, Message
 from app.models.system_setting import SystemSetting
+from app.models.invitation import InvitationCode
 from app.services.auth_service import hash_password
 
 ROLES = [

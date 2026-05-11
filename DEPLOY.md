@@ -162,6 +162,10 @@ docker compose logs -f --tail=50
 - 密码：`admin123`
 - **请立即修改密码**
 
+**生成邀请码（注册新用户前必须）：**
+
+进入 **管理后台** → **邀请码**，点击「生成邀请码」，将生成的邀请码发给需要注册的用户。注册时必须填写有效的邀请码。
+
 **配置 LLM：**
 
 进入 **系统设置** → **LLM 模型配置**：
@@ -206,8 +210,10 @@ docker compose restart backend
 # 停止所有服务
 docker compose down
 
-# 更新部署
-git pull
+# 更新部署（拉取最新代码 → 增量构建 → 重启）
+bash deploy.sh prod update
+
+# 完整重新部署（全量构建）
 bash deploy.sh prod
 
 # 清理旧镜像
@@ -219,6 +225,21 @@ tar czf backup_$(date +%Y%m%d).tar.gz data/
 # 查看 Hermes 实例日志
 docker logs hermes-<用户名>-001 --tail=50
 ```
+
+## 更新部署
+
+当有新版本发布时：
+
+```bash
+cd /opt/AgentHub
+bash deploy.sh prod update
+```
+
+此命令会自动完成：`git pull` → 加载新镜像 → 增量构建 → 重启服务 → 健康检查。
+
+数据库新表会在启动时自动创建，已有数据不受影响。
+
+> **离线更新**：如果服务器无法访问 Git，可在本地打包新版代码上传覆盖后，直接运行 `bash deploy.sh prod update`。
 
 ## 数据目录
 

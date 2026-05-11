@@ -122,6 +122,27 @@ class DockerAdapter:
             pass
         return ports
 
+    def pull_image(self, image: str):
+        """Pull (or update) a Docker image."""
+        self.client.images.pull(image)
+
+    def get_image_id(self, image: str) -> str | None:
+        try:
+            return self.client.images.get(image).id
+        except (NotFound, APIError):
+            return None
+
+    def get_container_image_id(self, container_id: str) -> str | None:
+        try:
+            container = self.client.containers.get(container_id)
+            return container.image.id
+        except (NotFound, APIError):
+            return None
+
+    def load_image_from_tar(self, tar_path: str):
+        with open(tar_path, "rb") as f:
+            self.client.images.load(f)
+
     def _parse_stats(self, stats: dict) -> dict:
         """Parse docker stats into a simpler format."""
         cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \

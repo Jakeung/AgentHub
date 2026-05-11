@@ -22,9 +22,46 @@ VALID_TRANSITIONS = {
     "stop": {"running"},
     "restart": {"running"},
     "delete": {"stopped", "error"},
+    "upgrade": {"stopped", "running", "error"},
 }
 
 HERMES_IMAGE = "nousresearch/hermes-agent:latest"
+IMAGES_DIR = "/app/images" if os.path.isdir("/app/images") else "./images"
+
+
+async def load_local_images():
+    """Load .tar image files from the images directory into Docker."""
+    if not os.path.isdir(IMAGES_DIR):
+        return
+    docker = DockerAdapter()
+    for fname in os.listdir(IMAGES_DIR):
+        if fname.endswith(".tar"):
+            tar_path = os.path.join(IMAGES_DIR, fname)
+            try:
+                await asyncio.to_thread(docker.load_image_from_tar, tar_path)
+                logger.info(f"Loaded image from {fname}")
+            except Exception as e:
+                logger.warning(f"Failed to load image {fname}: {e}")
+
+
+def check_upgrade_available(instance: AgentInstance) -> dict:
+    """Check if a newer image version is available for the instance."""
+    docker = DockerAdapter()
+    latest_id = docker.get_image_id(HERMES_IMAGE)
+    container_image_id = None
+    if instance.container_id and not instance.container_id.startswith("mock-"):
+        container_image_id = docker.get_container_image_id(instance.container_id)
+
+    available = (
+        latest_id is not None
+        and container_image_id is not None
+        and latest_id != container_image_id
+    )
+    return {
+        "available": available,
+        "current_image_id": (container_image_id or "")[:19],
+        "latest_image_id": (latest_id or "")[:19],
+    }
 
 
 async def _build_llm_env(db: AsyncSession) -> dict:
@@ -442,6 +479,68 @@ async def update_instance_channels(instance: AgentInstance, channel_env_vars: di
             docker.restart_container(instance.container_id)
         except Exception as e:
             logger.warning(f"Restart after channel config update failed: {e}")
+
+
+async def upgrade_instance(db: AsyncSession, instance: AgentInstance):
+    """Upgrade instance to latest image while preserving data."""
+    _check_transition(instance, "upgrade")
+    was_running = instance.status == "running"
+
+    try:
+        docker = DockerAdapter()
+
+        if was_running:
+            try:
+                docker.stop_container(instance.container_id, timeout=15)
+            except Exception as e:
+                logger.warning(f"Stop before upgrade failed: {e}")
+
+        try:
+            docker.remove_container(instance.container_id, force=True)
+        except Exception as e:
+            logger.warning(f"Remove container for upgrade failed: {e}")
+
+        await load_local_images()
+
+        abs_data_dir = os.path.abspath(instance.data_dir)
+        os.makedirs(abs_data_dir, exist_ok=True)
+        if settings.HOST_DATA_ROOT:
+            host_data_dir = os.path.join(settings.HOST_DATA_ROOT, instance.container_name)
+        else:
+            host_data_dir = abs_data_dir
+
+        env = json.loads(instance.env_config) if instance.env_config else {}
+        llm_env = await _build_llm_env(db)
+
+        container_id = await asyncio.wait_for(
+            asyncio.to_thread(
+                docker.create_container,
+                HERMES_IMAGE,
+                instance.container_name,
+                instance.port,
+                host_data_dir,
+                instance.memory_limit_mb,
+                instance.cpu_limit,
+                env,
+                instance.api_server_key or "",
+                llm_env,
+            ),
+            timeout=60,
+        )
+        instance.container_id = container_id
+        instance.status = "stopped"
+        instance.health_status = "upgraded"
+
+    except asyncio.TimeoutError:
+        instance.status = "error"
+        instance.health_status = "升级超时"
+    except Exception as e:
+        logger.error(f"Upgrade failed for {instance.container_name}: {e}", exc_info=True)
+        instance.status = "error"
+        instance.health_status = f"升级失败: {str(e)[:200]}"
+
+    await db.commit()
+    return was_running
 
 
 async def delete_instance(db: AsyncSession, instance: AgentInstance):

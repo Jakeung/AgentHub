@@ -61,6 +61,12 @@ export const instanceApi = {
   restart: (id: number) =>
     request.post(`/instances/${id}/restart`),
 
+  upgrade: (id: number) =>
+    request.post(`/instances/${id}/upgrade`),
+
+  checkUpgrade: () =>
+    request.get('/instances/upgrade-available'),
+
   logs: (id: number, tail = 100) =>
     request.get(`/instances/${id}/logs`, { params: { tail } }),
 

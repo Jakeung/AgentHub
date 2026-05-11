@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 
 from app.models.base import get_db
 from app.models.user import SysUser
+from app.models.invitation import InvitationCode
 from app.schemas.auth import RegisterRequest, LoginRequest
 from app.services.auth_service import (
     hash_password,
@@ -28,6 +29,20 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/register")
 @limiter.limit("5/minute")
 async def register(request: Request, req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    # Validate invitation code
+    result = await db.execute(
+        select(InvitationCode).where(InvitationCode.code == req.invitation_code)
+    )
+    invitation = result.scalar_one_or_none()
+    if not invitation:
+        return error(-1, "邀请码无效")
+    if not invitation.is_active:
+        return error(-1, "邀请码已停用")
+    if invitation.used_count >= invitation.max_uses:
+        return error(-1, "邀请码已用完")
+    if invitation.expires_at and invitation.expires_at < datetime.now(timezone.utc):
+        return error(-1, "邀请码已过期")
+
     # Check username uniqueness
     existing = await db.execute(select(SysUser).where(SysUser.username == req.username))
     if existing.scalar_one_or_none():
@@ -44,9 +59,10 @@ async def register(request: Request, req: RegisterRequest, db: AsyncSession = De
         password_hash=hash_password(req.password),
         name=req.username,
         email=req.email,
-        role_id=2,  # Always user role, admin cannot be created via registration
+        role_id=2,
     )
     db.add(user)
+    invitation.used_count += 1
     await db.commit()
     await db.refresh(user)
 

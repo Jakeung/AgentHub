@@ -106,6 +106,29 @@ async def create_instance(
     return success(_instance_to_dict(instance))
 
 
+@router.get("/upgrade-available")
+async def check_upgrade_available(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = request.state.user_id
+    await instance_service.load_local_images()
+
+    result = await db.execute(
+        select(AgentInstance).where(
+            AgentInstance.owner_user_id == user_id,
+            AgentInstance.status != "deleted",
+        )
+    )
+    instances = result.scalars().all()
+
+    upgrade_info = {}
+    for inst in instances:
+        upgrade_info[inst.id] = instance_service.check_upgrade_available(inst)
+
+    return success(upgrade_info)
+
+
 @router.get("/{instance_id}")
 async def get_instance(
     request: Request,
@@ -190,6 +213,19 @@ async def restart_instance(
     await log_operation(db, user_id=request.state.user_id, action="instance:restart", target_type="instance", target_id=instance_id, ip_address=get_client_ip(request))
     await db.commit()
     return success({"status": instance.status})
+
+
+@router.post("/{instance_id}/upgrade")
+async def upgrade_instance(
+    request: Request,
+    instance_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    instance = await _get_user_instance(db, instance_id, request.state.user_id)
+    was_running = await instance_service.upgrade_instance(db, instance)
+    await log_operation(db, user_id=request.state.user_id, action="instance:upgrade", target_type="instance", target_id=instance_id, ip_address=get_client_ip(request))
+    await db.commit()
+    return success({"status": instance.status, "was_running": was_running})
 
 
 @router.get("/{instance_id}/logs")

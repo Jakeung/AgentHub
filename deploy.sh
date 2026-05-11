@@ -3,7 +3,7 @@
 set -e
 
 # AgentHub 部署脚本
-# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|export-images]
+# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|update|export-images]
 
 ENVIRONMENT=${1:-prod}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -196,6 +196,42 @@ export_images() {
     ls -lh "$SCRIPT_DIR/images/"
 }
 
+update_services() {
+    log_info "====== AgentHub 更新 ======"
+    check_docker
+    setup_dirs
+
+    if [ -d "$SCRIPT_DIR/.git" ]; then
+        log_info "拉取最新代码..."
+        cd "$SCRIPT_DIR"
+        git pull origin main || { log_error "Git 拉取失败"; exit 1; }
+    fi
+
+    load_images
+
+    log_info "重新构建镜像（增量构建）..."
+    $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" build
+
+    log_info "重启服务..."
+    $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" up -d
+
+    log_info "等待服务就绪..."
+    for i in $(seq 1 15); do
+        if $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" exec -T backend curl -f -s http://localhost:8000/api/health > /dev/null 2>&1; then
+            log_info "服务已就绪"
+            FRONTEND_PORT=$(grep -E '^FRONTEND_PORT=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2 || echo "80")
+            FRONTEND_PORT=${FRONTEND_PORT:-80}
+            IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
+            log_info "====== 更新完成 ======"
+            log_info "访问地址: http://${IP}:${FRONTEND_PORT}"
+            return
+        fi
+        sleep 2
+    done
+    log_warn "服务启动超时，查看日志:"
+    $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" logs backend --tail=30
+}
+
 main() {
     log_info "====== AgentHub 部署 ======"
     log_info "环境: $ENVIRONMENT"
@@ -224,6 +260,7 @@ case "${2:-}" in
     logs)           show_logs ;;
     stop)           stop_services ;;
     cleanup)        cleanup ;;
+    update)         update_services ;;
     export-images)  export_images ;;
     *)              main ;;
 esac

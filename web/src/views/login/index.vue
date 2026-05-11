@@ -11,7 +11,7 @@ const userStore = useUserStore()
 const loginForm = reactive({ username: '', password: '' })
 const loading = ref(false)
 const showRegister = ref(false)
-const registerForm = reactive({ username: '', password: '', email: '' })
+const registerForm = reactive({ username: '', password: '', email: '', invitation_code: '' })
 const registerLoading = ref(false)
 
 async function handleLogin() {
@@ -43,6 +43,10 @@ async function handleLogin() {
 async function handleRegister() {
   if (!registerForm.username || !registerForm.password) {
     ElMessage.warning('请填写必填项')
+    return
+  }
+  if (!registerForm.invitation_code) {
+    ElMessage.warning('请输入邀请码')
     return
   }
   registerLoading.value = true
@@ -131,6 +135,9 @@ async function handleRegister() {
         </div>
       </template>
       <el-form @submit.prevent="handleRegister" label-position="top" class="register-form">
+        <el-form-item label="邀请码" required>
+          <el-input v-model="registerForm.invitation_code" placeholder="请输入邀请码" size="large" />
+        </el-form-item>
         <el-form-item label="用户名" required>
           <el-input v-model="registerForm.username" placeholder="3-50位字母、数字或下划线" size="large" />
         </el-form-item>

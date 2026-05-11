@@ -50,6 +50,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-settings',
         component: () => import('../views/admin/settings/index.vue'),
       },
+      {
+        path: 'invitations',
+        name: 'admin-invitations',
+        component: () => import('../views/admin/invitations/index.vue'),
+      },
     ],
   },
   // Catch-all

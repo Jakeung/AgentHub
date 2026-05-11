@@ -84,6 +84,13 @@
               @click="goChat(inst)"
             >对话</el-button>
             <el-button
+              v-if="upgradeAvailable[inst.id]?.available"
+              type="info"
+              size="small"
+              :loading="inst._actionLoading"
+              @click="handleUpgrade(inst)"
+            >升级</el-button>
+            <el-button
               type="danger"
               size="small"
               plain
@@ -237,6 +244,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 12
 const statusFilter = ref('')
+const upgradeAvailable = ref<Record<number, { available: boolean }>>({})
 
 // Create dialog
 const showCreateDialog = ref(false)
@@ -292,6 +300,17 @@ async function loadInstances() {
     total.value = res.data.total
   } finally {
     loading.value = false
+  }
+}
+
+async function loadUpgradeStatus() {
+  try {
+    const res = await instanceApi.checkUpgrade()
+    if (res.code === 0) {
+      upgradeAvailable.value = res.data
+    }
+  } catch {
+    // ignore — upgrade check is non-critical
   }
 }
 
@@ -374,6 +393,29 @@ async function handleRestart(inst: Instance & { _actionLoading?: boolean }) {
   }
 }
 
+async function handleUpgrade(inst: Instance & { _actionLoading?: boolean }) {
+  await ElMessageBox.confirm(
+    '升级将拉取最新镜像并重建容器，您的对话记录、记忆和配置都会保留。是否继续？',
+    '升级确认',
+    { type: 'info', confirmButtonText: '确认升级', cancelButtonText: '取消' },
+  )
+  inst._actionLoading = true
+  try {
+    const res = await instanceApi.upgrade(inst.id)
+    if (res.code === 0) {
+      ElMessage.success('升级完成，实例已停止，请手动启动')
+    } else {
+      ElMessage.error(res.message || '升级失败')
+    }
+    loadInstances()
+    loadUpgradeStatus()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '升级请求失败')
+  } finally {
+    inst._actionLoading = false
+  }
+}
+
 async function handleDelete(inst: Instance) {
   await ElMessageBox.confirm(`确认删除实例 "${inst.name}" 吗？此操作不可恢复。`, '删除确认', {
     type: 'warning',
@@ -447,7 +489,10 @@ async function handleSave() {
   }
 }
 
-onMounted(loadInstances)
+onMounted(() => {
+  loadInstances()
+  loadUpgradeStatus()
+})
 </script>
 
 <style scoped>
