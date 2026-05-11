@@ -186,26 +186,26 @@ async function deleteChannel(id: number) {
 }
 
 // --- WeChat QR ---
-import QRCode from 'qrcode'
 
 const weixinQrUrl = ref('')
 const weixinQrLoading = ref(false)
 const weixinQrStatus = ref('')
+const weixinQrError = ref(false)
 let weixinPollTimer: any = null
 
 async function startWeixinQr() {
   weixinQrLoading.value = true
   weixinQrStatus.value = ''
+  weixinQrError.value = false
   try {
     const res: any = await channelApi.weixinQrStart()
     if (res.code === 0) {
-      const qrText = res.data.qrcode || res.data.qr_url || ''
-      if (!qrText) {
+      const qrUrl = res.data.qr_url || ''
+      if (!qrUrl) {
         ElMessage.error('获取二维码失败: 返回数据为空')
         return
       }
-      const qrDataUrl = await QRCode.toDataURL(qrText, { width: 200, margin: 2 })
-      weixinQrUrl.value = qrDataUrl
+      weixinQrUrl.value = qrUrl
       pollWeixinStatus()
     } else {
       ElMessage.error(res.message || '获取二维码失败')
@@ -380,7 +380,10 @@ defineExpose({ selectedModel, onOpen })
             </div>
             <div v-else-if="weixinQrUrl" style="text-align:center">
               <p class="settings-hint">请使用微信扫描二维码</p>
-              <img :src="weixinQrUrl" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" />
+              <img v-if="!weixinQrError" :src="weixinQrUrl" style="width:200px;height:200px;border-radius:8px;border:1px solid #e8eaed" @error="weixinQrError = true" />
+              <div v-else style="padding:16px;background:#fef2f2;border-radius:8px;font-size:13px;color:#dc2626">
+                二维码图片加载失败，请检查网络后重试
+              </div>
               <p class="settings-hint" style="margin-top:8px">
                 {{ weixinQrStatus === 'scanned' ? '✅ 已扫码，请在微信确认...' : weixinQrStatus === 'confirmed' ? '🎉 绑定成功！' : '等待扫码...' }}
               </p>

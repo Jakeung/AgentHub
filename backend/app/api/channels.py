@@ -301,6 +301,7 @@ async def weixin_qr_start(request: Request):
                 return error(-1, f"获取二维码失败: HTTP {resp.status_code}")
 
             data = resp.json()
+            logger.info(f"iLink QR response keys: {list(data.keys())}")
             qrcode_value = data.get("qrcode", "")
             qrcode_url = data.get("qrcode_img_content", "")
 
@@ -308,7 +309,11 @@ async def weixin_qr_start(request: Request):
                 return error(-1, "获取二维码失败: 返回数据不完整")
 
             if qrcode_url and not qrcode_url.startswith(("http", "data:")):
+                import re
+                qrcode_url = re.sub(r'\s+', '', qrcode_url)
                 qrcode_url = f"data:image/png;base64,{qrcode_url}"
+
+            logger.info(f"iLink QR: qrcode len={len(qrcode_value)}, img_content len={len(data.get('qrcode_img_content', ''))}, has_url={bool(qrcode_url)}")
 
             # Store session
             _weixin_qr_sessions[user_id] = {
