@@ -218,7 +218,7 @@ pull_code() {
 
 start_services() {
     log_info "构建镜像（前端 + 后端合并容器）..."
-    $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" build --no-cache
+    $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" build
 
     log_info "启动服务..."
     $COMPOSE_CMD -f "$SCRIPT_DIR/docker-compose.yml" up -d
