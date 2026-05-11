@@ -186,6 +186,7 @@ async function deleteChannel(id: number) {
 }
 
 // --- WeChat QR ---
+import QRCode from 'qrcode'
 
 const weixinQrUrl = ref('')
 const weixinQrLoading = ref(false)
@@ -200,12 +201,16 @@ async function startWeixinQr() {
   try {
     const res: any = await channelApi.weixinQrStart()
     if (res.code === 0) {
-      const qrUrl = res.data.qr_url || ''
-      if (!qrUrl) {
+      const qrContent = res.data.qr_url || ''
+      if (!qrContent) {
         ElMessage.error('获取二维码失败: 返回数据为空')
         return
       }
-      weixinQrUrl.value = qrUrl
+      if (qrContent.startsWith('data:')) {
+        weixinQrUrl.value = qrContent
+      } else {
+        weixinQrUrl.value = await QRCode.toDataURL(qrContent, { width: 200, margin: 2 })
+      }
       pollWeixinStatus()
     } else {
       ElMessage.error(res.message || '获取二维码失败')

@@ -301,7 +301,6 @@ async def weixin_qr_start(request: Request):
                 return error(-1, f"获取二维码失败: HTTP {resp.status_code}")
 
             data = resp.json()
-            logger.info(f"iLink QR full response: {data}")
             qrcode_value = data.get("qrcode", "")
             qrcode_url = data.get("qrcode_img_content", "")
 
@@ -312,8 +311,6 @@ async def weixin_qr_start(request: Request):
                 import re
                 qrcode_url = re.sub(r'\s+', '', qrcode_url)
                 qrcode_url = f"data:image/png;base64,{qrcode_url}"
-
-            logger.info(f"iLink QR: qrcode len={len(qrcode_value)}, img_content len={len(data.get('qrcode_img_content', ''))}, has_url={bool(qrcode_url)}")
 
             # Store session
             _weixin_qr_sessions[user_id] = {
@@ -409,5 +406,5 @@ async def weixin_qr_status(request: Request, db: AsyncSession = Depends(get_db))
 
             return success({"status": "waiting"})
     except Exception as e:
-        logger.error(f"WeChat QR status error: {e}")
+        logger.error(f"WeChat QR status error: {type(e).__name__}: {e}")
         return success({"status": "error", "message": str(e)[:100]})
