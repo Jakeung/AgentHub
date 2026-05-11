@@ -17,6 +17,24 @@ from app.models.tool import ToolRegistry, InstanceToolConfig, InstanceSkillConfi
 from app.services.auth_service import hash_password
 
 
+async def _migrate_add_missing_columns(conn):
+    """Add columns that exist in models but are missing from the database."""
+    migrations = [
+        ("message", "prompt_tokens", "INTEGER DEFAULT 0"),
+        ("message", "completion_tokens", "INTEGER DEFAULT 0"),
+    ]
+    for table, column, col_type in migrations:
+        try:
+            result = await conn.execute(text(
+                f"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name='{column}'"
+            ))
+            if result.scalar() == 0:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+                print(f"✅ Added column {table}.{column}")
+        except Exception as e:
+            print(f"⚠️ Migration {table}.{column} skipped: {e}")
+
+
 async def _migrate_remove_unique_constraints(conn):
     """Remove UNIQUE constraints from agent_instance.port and container_name for soft-delete compatibility."""
     try:
@@ -225,6 +243,7 @@ DEFAULT_TOOLS = [
 async def seed():
     async with engine.begin() as conn:
         await _migrate_remove_unique_constraints(conn)
+        await _migrate_add_missing_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session() as db:
