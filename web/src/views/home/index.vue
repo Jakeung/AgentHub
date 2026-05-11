@@ -248,12 +248,12 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 
 /* Hero */
 .hero {
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  padding: 80px 24px 60px;
+  padding: 100px 24px 60px;
 }
 .hero-bg {
   position: absolute;
