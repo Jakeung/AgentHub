@@ -3,7 +3,7 @@
 set -e
 
 # AgentHub 部署脚本
-# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|update|export-images]
+# 使用方式: bash deploy.sh [prod|dev] [logs|stop|cleanup|update|pull-hermes|export-images]
 
 ENVIRONMENT=${1:-prod}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -142,6 +142,54 @@ load_images() {
     fi
 }
 
+HERMES_IMAGE="nousresearch/hermes-agent:latest"
+
+ensure_hermes_image() {
+    if docker image inspect "$HERMES_IMAGE" &> /dev/null; then
+        log_info "Hermes Agent 镜像已存在"
+        return 0
+    fi
+
+    log_info "Hermes Agent 镜像不存在，尝试导入..."
+    load_images
+
+    if docker image inspect "$HERMES_IMAGE" &> /dev/null; then
+        log_info "已从本地 .tar 导入 Hermes Agent 镜像"
+        return 0
+    fi
+
+    log_info "本地无 .tar 文件，从 Docker Hub 拉取..."
+    if docker pull "$HERMES_IMAGE"; then
+        log_info "Hermes Agent 镜像拉取成功"
+    else
+        log_error "Hermes Agent 镜像拉取失败，请手动执行: docker pull $HERMES_IMAGE"
+        log_warn "或将镜像 .tar 文件放入 images/ 目录"
+    fi
+}
+
+pull_hermes() {
+    check_docker
+    log_info "检查 Hermes Agent 镜像更新..."
+
+    OLD_ID=$(docker image inspect "$HERMES_IMAGE" --format '{{.Id}}' 2>/dev/null || echo "none")
+
+    load_images
+
+    if docker pull "$HERMES_IMAGE"; then
+        NEW_ID=$(docker image inspect "$HERMES_IMAGE" --format '{{.Id}}' 2>/dev/null || echo "")
+        if [ "$OLD_ID" == "$NEW_ID" ]; then
+            log_info "已是最新版本，无需更新"
+        else
+            log_info "已更新到新版本"
+            log_info "旧镜像 ID: ${OLD_ID:0:19}"
+            log_info "新镜像 ID: ${NEW_ID:0:19}"
+            log_warn "请在管理界面通知用户升级实例"
+        fi
+    else
+        log_error "镜像拉取失败，请检查网络或配置镜像加速器"
+    fi
+}
+
 pull_code() {
     if [ "$ENVIRONMENT" == "prod" ] && [ -d "$SCRIPT_DIR/.git" ]; then
         log_info "拉取最新代码..."
@@ -240,7 +288,7 @@ main() {
     check_env
     setup_dirs
     setup_network
-    load_images
+    ensure_hermes_image
     pull_code
     start_services
 
@@ -261,6 +309,7 @@ case "${2:-}" in
     stop)           stop_services ;;
     cleanup)        cleanup ;;
     update)         update_services ;;
+    pull-hermes)    pull_hermes ;;
     export-images)  export_images ;;
     *)              main ;;
 esac

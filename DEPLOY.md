@@ -113,6 +113,24 @@ vim .env
 docker pull nousresearch/hermes-agent:latest
 ```
 
+> **国内加速**：如果拉取速度慢，先配置 Docker 镜像加速器：
+>
+> ```bash
+> sudo mkdir -p /etc/docker
+> sudo tee /etc/docker/daemon.json <<-'EOF'
+> {
+>   "registry-mirrors": [
+>     "https://docker.m.daocloud.io",
+>     "https://mirror.ccs.tencentyun.com"
+>   ]
+> }
+> EOF
+> sudo systemctl daemon-reload
+> sudo systemctl restart docker
+> ```
+>
+> 配置后重新执行 `docker pull` 即可。如果使用阿里云/腾讯云服务器，可在对应云控制台获取专属加速地址，效果更好。
+
 **方式二：离线导入（无网络环境）**
 
 在有网络的机器上导出镜像：
