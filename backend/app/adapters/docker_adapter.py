@@ -57,6 +57,10 @@ class DockerAdapter:
             restart_policy={"Name": "unless-stopped"},
             network="agenthub-network",
             detach=True,
+            security_opt=["no-new-privileges:true"],
+            cap_drop=["ALL"],
+            cap_add=["NET_RAW"],
+            tmpfs={"/tmp": "size=256m"},
         )
         return container.id
 
