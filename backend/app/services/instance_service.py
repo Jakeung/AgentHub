@@ -233,14 +233,21 @@ async def create_instance(
 async def _write_hermes_config(instance: AgentInstance):
     """Write config.yaml into the Hermes data dir before container starts."""
     from app.models.base import async_session as _async_session
+
+    async with _async_session() as db:
+        await write_hermes_config_with_tools(db, instance)
+
+
+async def write_hermes_config_with_tools(db: AsyncSession, instance: AgentInstance):
+    """Write config.yaml with model config + platform_toolsets."""
     from app.models.system_setting import SystemSetting
+    from app.models.tool import InstanceToolConfig
 
     sys_settings = {}
     try:
-        async with _async_session() as db:
-            result = await db.execute(select(SystemSetting))
-            for s in result.scalars().all():
-                sys_settings[s.key] = s.value
+        result = await db.execute(select(SystemSetting))
+        for s in result.scalars().all():
+            sys_settings[s.key] = s.value
     except Exception:
         pass
 
@@ -251,6 +258,18 @@ async def _write_hermes_config(instance: AgentInstance):
     config_content = f'model:\n  default: "{model_name}"\n  provider: "{provider}"\n'
     if base_url:
         config_content += f'  base_url: "{base_url}"\n'
+
+    result = await db.execute(
+        select(InstanceToolConfig).where(
+            InstanceToolConfig.instance_id == instance.id,
+            InstanceToolConfig.enabled == True,
+        )
+    )
+    enabled_tools = [c.tool_name for c in result.scalars().all()]
+
+    if enabled_tools:
+        toolsets_str = ", ".join(enabled_tools)
+        config_content += f"\nplatform_toolsets:\n  cli: [{toolsets_str}]\n"
 
     try:
         config_path = os.path.join(instance.data_dir, "config.yaml")
@@ -426,6 +445,21 @@ async def update_instance_llm_config(
         config_lines.append(f'  base_url: "{base_url}"')
     config_content = "\n".join(config_lines) + "\n"
 
+    # Append platform_toolsets if any tools are enabled
+    from app.models.tool import InstanceToolConfig as ITC
+    from app.models.base import async_session as _async_session
+    try:
+        async with _async_session() as tool_db:
+            result = await tool_db.execute(
+                select(ITC).where(ITC.instance_id == instance.id, ITC.enabled == True)
+            )
+            enabled_tools = [c.tool_name for c in result.scalars().all()]
+        if enabled_tools:
+            toolsets_str = ", ".join(enabled_tools)
+            config_content += f"\nplatform_toolsets:\n  cli: [{toolsets_str}]\n"
+    except Exception:
+        pass
+
     try:
         with open(os.path.join(data_dir, ".env"), "w") as f:
             f.write(env_content)
@@ -444,16 +478,24 @@ async def update_instance_llm_config(
 
 
 async def update_instance_channels(instance: AgentInstance, channel_env_vars: dict):
-    """Append channel env vars to the .env file via shared volume and restart."""
-    data_dir = instance.data_dir
-    env_path = os.path.join(data_dir, ".env")
+    """Append channel env vars to the .env file via docker exec and restart."""
+    import base64
 
+    docker = DockerAdapter()
+
+    # Read .env from inside the container (avoids host permission issues)
     try:
-        with open(env_path, "r") as f:
-            current_env = f.read().strip()
-    except FileNotFoundError:
+        current_env = await asyncio.to_thread(
+            docker.exec_in_container,
+            instance.container_id,
+            "cat /opt/data/.env 2>/dev/null || echo ''"
+        )
+        current_env = current_env.strip()
+    except Exception as e:
+        logger.warning(f"Failed to read .env from container: {e}")
         current_env = ""
 
+    # Parse and update env vars
     existing_lines = []
     channel_keys = set(channel_env_vars.keys())
     for line in current_env.split("\n"):
@@ -469,16 +511,21 @@ async def update_instance_channels(instance: AgentInstance, channel_env_vars: di
 
     env_content = "\n".join(existing_lines) + "\n"
 
+    # Write back via docker exec (base64 encoded to avoid escaping issues)
     try:
-        with open(env_path, "w") as f:
-            f.write(env_content)
+        encoded = base64.b64encode(env_content.encode()).decode()
+        await asyncio.to_thread(
+            docker.exec_in_container,
+            instance.container_id,
+            f"echo '{encoded}' | base64 -d > /opt/data/.env"
+        )
+        logger.info(f"Updated .env for {instance.container_name} via docker exec")
     except Exception as e:
-        logger.error(f"Failed to write channel env to {data_dir}: {e}")
+        logger.error(f"Failed to write .env via docker exec: {e}")
         raise
 
     if instance.status == "running":
         try:
-            docker = DockerAdapter()
             docker.restart_container(instance.container_id)
         except Exception as e:
             logger.warning(f"Restart after channel config update failed: {e}")
@@ -567,6 +614,7 @@ async def delete_instance(db: AsyncSession, instance: AgentInstance):
     from app.models.channel import InstanceChannelConfig
     from app.models.instance import InstanceModelConfig
     from app.models.audit import InstanceRuntimeLog
+    from app.models.tool import InstanceToolConfig, InstanceSkillConfig
 
     conv_ids = (await db.execute(
         select(Conversation.id).where(Conversation.instance_id == iid)
@@ -578,6 +626,8 @@ async def delete_instance(db: AsyncSession, instance: AgentInstance):
     await db.execute(delete(InstanceChannelConfig).where(InstanceChannelConfig.instance_id == iid))
     await db.execute(delete(InstanceModelConfig).where(InstanceModelConfig.instance_id == iid))
     await db.execute(delete(InstanceRuntimeLog).where(InstanceRuntimeLog.instance_id == iid))
+    await db.execute(delete(InstanceToolConfig).where(InstanceToolConfig.instance_id == iid))
+    await db.execute(delete(InstanceSkillConfig).where(InstanceSkillConfig.instance_id == iid))
 
     await db.delete(instance)
     await db.commit()

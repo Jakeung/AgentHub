@@ -110,6 +110,11 @@ class DockerAdapter:
         except NotFound:
             return False
 
+    def exec_in_container(self, container_id: str, cmd: str) -> str:
+        container = self.client.containers.get(container_id)
+        result = container.exec_run(["sh", "-c", cmd])
+        return result.output.decode("utf-8", errors="replace") if result.output else ""
+
     def get_used_host_ports(self) -> set[int]:
         """Get all host ports currently bound by Docker containers."""
         ports = set()

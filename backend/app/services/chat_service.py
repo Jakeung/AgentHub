@@ -48,11 +48,16 @@ async def save_message(
     conversation_id: int,
     role: str,
     content: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
 ) -> Message:
     msg = Message(
         conversation_id=conversation_id,
         role=role,
         content=content,
+        token_count=prompt_tokens + completion_tokens,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
     db.add(msg)
 
@@ -124,7 +129,16 @@ async def stream_chat(
 
     # Save assistant response
     if full_response:
-        await save_message(db, conversation.id, "assistant", "".join(full_response))
+        prompt_tokens = 0
+        completion_tokens = 0
+        if adapter.last_usage:
+            prompt_tokens = adapter.last_usage.get("prompt_tokens", 0)
+            completion_tokens = adapter.last_usage.get("completion_tokens", 0)
+        await save_message(
+            db, conversation.id, "assistant", "".join(full_response),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
 
 
 async def list_conversations(

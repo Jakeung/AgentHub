@@ -17,6 +17,7 @@ class HermesAdapter:
             self.base_url = f"http://localhost:{port}"
         self.timeout = timeout
         self.api_key = api_key
+        self.last_usage: dict | None = None
 
     async def chat_stream(
         self,
@@ -26,10 +27,12 @@ class HermesAdapter:
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
         """Stream chat completions from Hermes Agent via SSE."""
+        self.last_usage = None
         payload = {
             "model": model,
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
@@ -56,6 +59,9 @@ class HermesAdapter:
                         return
                     try:
                         chunk = json.loads(data)
+                        usage = chunk.get("usage")
+                        if usage:
+                            self.last_usage = usage
                         delta = chunk.get("choices", [{}])[0].get("delta", {})
                         content = delta.get("content", "")
                         if content:

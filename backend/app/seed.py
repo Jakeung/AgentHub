@@ -1,5 +1,6 @@
-"""Seed initial data: roles, permissions, role-permission bindings, admin user."""
+"""Seed initial data: roles, permissions, role-permission bindings, admin user, tool registry."""
 import asyncio
+import json
 from sqlalchemy import select, text
 from app.models.base import engine, async_session, Base
 from app.models.role import SysRole, SysPermission, SysRolePermission
@@ -12,6 +13,7 @@ from app.models.task import AsyncTask
 from app.models.conversation import Conversation, Message
 from app.models.system_setting import SystemSetting
 from app.models.invitation import InvitationCode
+from app.models.tool import ToolRegistry, InstanceToolConfig, InstanceSkillConfig
 from app.services.auth_service import hash_password
 
 
@@ -67,6 +69,158 @@ ROLE_PERMISSIONS = (
     + [(2, pid) for pid in range(1, 9)]
 )
 
+DEFAULT_TOOLS = [
+    {
+        "name": "web",
+        "display_name": "网络搜索",
+        "description": "网络搜索和网页内容提取（web_search + web_extract）",
+        "category": "search",
+        "icon": "search",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 1,
+    },
+    {
+        "name": "terminal",
+        "display_name": "终端执行",
+        "description": "命令行执行和进程管理（terminal + process）",
+        "category": "code",
+        "icon": "terminal",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 2,
+    },
+    {
+        "name": "file",
+        "display_name": "文件操作",
+        "description": "文件读写、补丁、搜索（read_file + write_file + patch + search）",
+        "category": "file",
+        "icon": "folder",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 3,
+    },
+    {
+        "name": "browser",
+        "display_name": "浏览器自动化",
+        "description": "网页导航、截图、点击、输入等自动化操作",
+        "category": "browser",
+        "icon": "chrome",
+        "config_schema": json.dumps({
+            "type": "object",
+            "properties": {
+                "BROWSERBASE_API_KEY": {
+                    "type": "string",
+                    "title": "Browserbase API Key",
+                    "description": "浏览器服务 API Key",
+                }
+            },
+            "required": ["BROWSERBASE_API_KEY"],
+        }),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": True,
+        "sort_order": 4,
+    },
+    {
+        "name": "vision",
+        "display_name": "图像分析",
+        "description": "分析和理解图片内容",
+        "category": "vision",
+        "icon": "eye",
+        "config_schema": json.dumps({
+            "type": "object",
+            "properties": {
+                "OPENROUTER_API_KEY": {
+                    "type": "string",
+                    "title": "OpenRouter API Key",
+                    "description": "视觉分析需要 OpenRouter API",
+                }
+            },
+        }),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": True,
+        "sort_order": 5,
+    },
+    {
+        "name": "image_gen",
+        "display_name": "图像生成",
+        "description": "使用 FLUX 模型生成图片",
+        "category": "image",
+        "icon": "image",
+        "config_schema": json.dumps({
+            "type": "object",
+            "properties": {
+                "FAL_KEY": {
+                    "type": "string",
+                    "title": "Fal.ai API Key",
+                    "description": "图像生成需要 Fal.ai API Key",
+                }
+            },
+            "required": ["FAL_KEY"],
+        }),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": True,
+        "sort_order": 6,
+    },
+    {
+        "name": "tts",
+        "display_name": "文本转语音",
+        "description": "将文本转换为语音（支持 Edge TTS 免费方案）",
+        "category": "media",
+        "icon": "volume",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 7,
+    },
+    {
+        "name": "todo",
+        "display_name": "任务规划",
+        "description": "多步骤任务的规划和追踪",
+        "category": "productivity",
+        "icon": "check-square",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 8,
+    },
+    {
+        "name": "skills",
+        "display_name": "技能系统",
+        "description": "查看和加载技能文档，获取领域专业指导",
+        "category": "system",
+        "icon": "book",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 9,
+    },
+    {
+        "name": "cronjob",
+        "display_name": "定时任务",
+        "description": "创建和管理定时执行的自动化任务",
+        "category": "automation",
+        "icon": "clock",
+        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "default_config": json.dumps({}),
+        "is_active": True,
+        "requires_api_key": False,
+        "sort_order": 10,
+    },
+]
+
 
 async def seed():
     async with engine.begin() as conn:
@@ -110,6 +264,14 @@ async def seed():
                 role_id=1,
                 status="active",
             ))
+
+        # Tool registry
+        for t in DEFAULT_TOOLS:
+            existing = await db.execute(
+                select(ToolRegistry).where(ToolRegistry.name == t["name"])
+            )
+            if not existing.scalar_one_or_none():
+                db.add(ToolRegistry(**t))
 
         await db.commit()
         print("✅ Seed data initialized.")

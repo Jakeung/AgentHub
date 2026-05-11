@@ -23,4 +23,6 @@ class Message(Base):
     role = Column(String(20), nullable=False)  # user / assistant / system
     content = Column(Text, nullable=False)
     token_count = Column(Integer, default=0)
+    prompt_tokens = Column(Integer, default=0)
+    completion_tokens = Column(Integer, default=0)
     created_at = Column(DateTime, server_default=func.now())
