@@ -7,9 +7,9 @@ class AgentInstance(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
-    container_name = Column(String(200), unique=True, nullable=False)
+    container_name = Column(String(200), nullable=False)
     container_id = Column(String(100), nullable=True)
-    port = Column(Integer, unique=True, nullable=False)
+    port = Column(Integer, nullable=False)
     status = Column(String(20), default="creating", index=True)
     health_status = Column(String(20), default="unknown")
     cpu_limit = Column(Float, default=1.0)

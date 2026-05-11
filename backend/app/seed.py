@@ -1,6 +1,6 @@
 """Seed initial data: roles, permissions, role-permission bindings, admin user."""
 import asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 from app.models.base import engine, async_session, Base
 from app.models.role import SysRole, SysPermission, SysRolePermission
 from app.models.user import SysUser
@@ -13,6 +13,32 @@ from app.models.conversation import Conversation, Message
 from app.models.system_setting import SystemSetting
 from app.models.invitation import InvitationCode
 from app.services.auth_service import hash_password
+
+
+async def _migrate_remove_unique_constraints(conn):
+    """Remove UNIQUE constraints from agent_instance.port and container_name for soft-delete compatibility."""
+    result = await conn.execute(text(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_instance'"
+    ))
+    row = result.first()
+    if not row or not row[0]:
+        return
+    create_sql = row[0]
+    if "UNIQUE" not in create_sql:
+        return
+
+    print("🔄 Migrating agent_instance: removing UNIQUE constraints...")
+    await conn.execute(text("ALTER TABLE agent_instance RENAME TO _agent_instance_old"))
+    new_sql = create_sql.replace('"container_name" VARCHAR(200) NOT NULL UNIQUE', '"container_name" VARCHAR(200) NOT NULL')
+    new_sql = new_sql.replace('"port" INTEGER NOT NULL UNIQUE', '"port" INTEGER NOT NULL')
+    new_sql = new_sql.replace("container_name VARCHAR(200) NOT NULL UNIQUE", "container_name VARCHAR(200) NOT NULL")
+    new_sql = new_sql.replace("port INTEGER NOT NULL UNIQUE", "port INTEGER NOT NULL")
+    await conn.execute(text(new_sql))
+    await conn.execute(text(
+        "INSERT INTO agent_instance SELECT * FROM _agent_instance_old"
+    ))
+    await conn.execute(text("DROP TABLE _agent_instance_old"))
+    print("✅ Migration complete: UNIQUE constraints removed")
 
 ROLES = [
     {"id": 1, "name": "admin", "description": "系统管理员"},
@@ -43,6 +69,7 @@ ROLE_PERMISSIONS = (
 
 async def seed():
     async with engine.begin() as conn:
+        await _migrate_remove_unique_constraints(conn)
         await conn.run_sync(Base.metadata.create_all)
 
     async with async_session() as db:
