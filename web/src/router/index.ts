@@ -3,6 +3,11 @@ import { useUserStore } from '../stores/user'
 
 const routes: RouteRecordRaw[] = [
   {
+    path: '/',
+    name: 'home',
+    component: () => import('../views/home/index.vue'),
+  },
+  {
     path: '/login',
     name: 'login',
     component: () => import('../views/login/index.vue'),
@@ -58,7 +63,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   // Catch-all
-  { path: '/:pathMatch(.*)*', redirect: '/login' },
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
 const router = createRouter({
@@ -69,9 +74,9 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
 
-  // Public page
-  if (to.path === '/login') {
-    if (userStore.isLoggedIn) {
+  // Public pages
+  if (to.path === '/' || to.path === '/login') {
+    if (to.path === '/login' && userStore.isLoggedIn) {
       return next(userStore.isAdmin ? '/admin/dashboard' : '/user')
     }
     return next()
@@ -95,11 +100,6 @@ router.beforeEach(async (to, _from, next) => {
   // User accessing /admin/* → redirect
   if (to.path.startsWith('/admin') && !userStore.isAdmin) {
     return next('/user')
-  }
-
-  // Root redirect
-  if (to.path === '/') {
-    return next(userStore.isAdmin ? '/admin/dashboard' : '/user')
   }
 
   next()
