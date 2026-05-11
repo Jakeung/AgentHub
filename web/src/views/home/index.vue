@@ -59,7 +59,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             </div>
             <h3>多平台接入</h3>
-            <p>支持微信、Telegram、Discord 等 8 大消息平台，一次配置即可多端响应</p>
+            <p>支持微信、Telegram、Discord 等消息平台，一次配置即可多端响应</p>
           </div>
           <div class="feature-card">
             <div class="feature-icon" style="background: rgba(139,92,246,0.1); color: #8b5cf6">
