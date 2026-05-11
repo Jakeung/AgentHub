@@ -301,7 +301,7 @@ async def weixin_qr_start(request: Request):
                 return error(-1, f"获取二维码失败: HTTP {resp.status_code}")
 
             data = resp.json()
-            logger.info(f"iLink QR response keys: {list(data.keys())}")
+            logger.info(f"iLink QR full response: {data}")
             qrcode_value = data.get("qrcode", "")
             qrcode_url = data.get("qrcode_img_content", "")
 
