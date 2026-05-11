@@ -550,7 +550,7 @@ async def upgrade_instance(db: AsyncSession, instance: AgentInstance):
 
 
 async def delete_instance(db: AsyncSession, instance: AgentInstance):
-    """Delete instance and remove database record."""
+    """Delete instance and all related database records."""
     _check_transition(instance, "delete")
     try:
         docker = DockerAdapter()
@@ -560,6 +560,25 @@ async def delete_instance(db: AsyncSession, instance: AgentInstance):
         logger.warning(f"Container remove failed (ignored): {e}")
 
     instance_name = instance.name
+    iid = instance.id
+
+    from sqlalchemy import delete
+    from app.models.conversation import Conversation, Message
+    from app.models.channel import InstanceChannelConfig
+    from app.models.instance import InstanceModelConfig
+    from app.models.audit import InstanceRuntimeLog
+
+    conv_ids = (await db.execute(
+        select(Conversation.id).where(Conversation.instance_id == iid)
+    )).scalars().all()
+    if conv_ids:
+        await db.execute(delete(Message).where(Message.conversation_id.in_(conv_ids)))
+        await db.execute(delete(Conversation).where(Conversation.instance_id == iid))
+
+    await db.execute(delete(InstanceChannelConfig).where(InstanceChannelConfig.instance_id == iid))
+    await db.execute(delete(InstanceModelConfig).where(InstanceModelConfig.instance_id == iid))
+    await db.execute(delete(InstanceRuntimeLog).where(InstanceRuntimeLog.instance_id == iid))
+
     await db.delete(instance)
     await db.commit()
     logger.info(f"Instance {instance_name} deleted")
