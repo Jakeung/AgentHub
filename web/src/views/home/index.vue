@@ -157,7 +157,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
             </a>
           </div>
           <div class="contact-qr">
-            <img src="/微信.jpg" alt="微信二维码" />
+            <img src="/wechat-qr.png" alt="微信二维码" />
             <span>扫码添加微信</span>
           </div>
         </div>
