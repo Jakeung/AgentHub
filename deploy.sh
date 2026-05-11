@@ -121,6 +121,7 @@ check_env() {
 setup_dirs() {
     mkdir -p "$SCRIPT_DIR/data/hermes"
     chmod 755 "$SCRIPT_DIR/data"
+    chown -R 1000:1000 "$SCRIPT_DIR/data" 2>/dev/null || true
 }
 
 setup_network() {

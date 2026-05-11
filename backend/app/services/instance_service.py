@@ -232,7 +232,7 @@ async def create_instance(
 
 
 async def _write_hermes_config(instance: AgentInstance):
-    """Write config.yaml into the Hermes data dir after container starts."""
+    """Write config.yaml into the Hermes data dir before container starts."""
     from app.models.base import async_session as _async_session
     from app.models.system_setting import SystemSetting
 
@@ -254,7 +254,6 @@ async def _write_hermes_config(instance: AgentInstance):
         config_content += f'  base_url: "{base_url}"\n'
 
     try:
-        await asyncio.sleep(3)
         config_path = os.path.join(instance.data_dir, "config.yaml")
         with open(config_path, "w") as f:
             f.write(config_content)
@@ -307,8 +306,8 @@ async def start_instance(db: AsyncSession, instance: AgentInstance):
             instance.status = "running"
             instance.health_status = "healthy"
 
-            # Write config.yaml after entry point initializes (runs in background)
-            asyncio.create_task(_write_hermes_config(instance))
+            # Write config.yaml (synchronous, before hermes fully initializes)
+            await _write_hermes_config(instance)
 
             break
 
