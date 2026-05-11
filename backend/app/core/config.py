@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Environment
     ENVIRONMENT: str = "development"
+    ENABLE_HTTPS: bool = False
 
     # Hermes instance config
     HERMES_DATA_ROOT: str = "./data/hermes"
