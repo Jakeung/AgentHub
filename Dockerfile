@@ -7,7 +7,7 @@ RUN npm run build
 
 FROM python:3.10-slim
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl gosu && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --trusted-host pypi.tuna.tsinghua.edu.cn
 COPY backend/ .
@@ -15,6 +15,8 @@ COPY --from=frontend-builder /app/dist /app/static
 RUN mkdir -p /app/data && \
     adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
-USER appuser
+COPY backend/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
