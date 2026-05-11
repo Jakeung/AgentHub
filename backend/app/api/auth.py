@@ -58,7 +58,7 @@ async def register(request: Request, req: RegisterRequest, db: AsyncSession = De
         username=req.username,
         password_hash=hash_password(req.password),
         name=req.username,
-        email=req.email,
+        email=req.email or None,
         role_id=2,
     )
     db.add(user)
