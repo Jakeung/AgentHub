@@ -17,28 +17,29 @@ from app.services.auth_service import hash_password
 
 async def _migrate_remove_unique_constraints(conn):
     """Remove UNIQUE constraints from agent_instance.port and container_name for soft-delete compatibility."""
-    result = await conn.execute(text(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_instance'"
-    ))
-    row = result.first()
-    if not row or not row[0]:
-        return
-    create_sql = row[0]
-    if "UNIQUE" not in create_sql:
-        return
+    try:
+        result = await conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_instance'"
+        ))
+        row = result.first()
+        if not row or not row[0]:
+            return
+        create_sql = row[0]
+        has_port_unique = "port" in create_sql and "UNIQUE" in create_sql.split("port")[1].split(",")[0]
+        if not has_port_unique:
+            return
 
-    print("🔄 Migrating agent_instance: removing UNIQUE constraints...")
-    await conn.execute(text("ALTER TABLE agent_instance RENAME TO _agent_instance_old"))
-    new_sql = create_sql.replace('"container_name" VARCHAR(200) NOT NULL UNIQUE', '"container_name" VARCHAR(200) NOT NULL')
-    new_sql = new_sql.replace('"port" INTEGER NOT NULL UNIQUE', '"port" INTEGER NOT NULL')
-    new_sql = new_sql.replace("container_name VARCHAR(200) NOT NULL UNIQUE", "container_name VARCHAR(200) NOT NULL")
-    new_sql = new_sql.replace("port INTEGER NOT NULL UNIQUE", "port INTEGER NOT NULL")
-    await conn.execute(text(new_sql))
-    await conn.execute(text(
-        "INSERT INTO agent_instance SELECT * FROM _agent_instance_old"
-    ))
-    await conn.execute(text("DROP TABLE _agent_instance_old"))
-    print("✅ Migration complete: UNIQUE constraints removed")
+        print("🔄 Migrating agent_instance: removing UNIQUE constraints...")
+        await conn.execute(text("ALTER TABLE agent_instance RENAME TO _agent_instance_old"))
+        new_sql = create_sql.replace(" UNIQUE", "", 2)
+        await conn.execute(text(new_sql))
+        await conn.execute(text(
+            "INSERT INTO agent_instance SELECT * FROM _agent_instance_old"
+        ))
+        await conn.execute(text("DROP TABLE _agent_instance_old"))
+        print("✅ Migration complete: UNIQUE constraints removed")
+    except Exception as e:
+        print(f"⚠️ Migration skipped: {e}")
 
 ROLES = [
     {"id": 1, "name": "admin", "description": "系统管理员"},
