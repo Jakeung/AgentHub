@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard-page" v-loading="loading">
+  <div class="dashboard-page" ref="dashboardRef" v-loading="loading">
     <!-- Stats Cards -->
     <div class="stats-row">
       <div class="stat-card">
@@ -228,6 +228,9 @@ function initCharts() {
   }
 }
 
+let resizeObserver: ResizeObserver | null = null
+const dashboardRef = ref<HTMLElement>()
+
 function handleResize() {
   charts.forEach(c => c.resize())
 }
@@ -247,10 +250,15 @@ async function loadData() {
 onMounted(() => {
   loadData()
   window.addEventListener('resize', handleResize)
+  if (dashboardRef.value) {
+    resizeObserver = new ResizeObserver(() => handleResize())
+    resizeObserver.observe(dashboardRef.value)
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  resizeObserver?.disconnect()
   charts.forEach(c => c.dispose())
   charts = []
 })
