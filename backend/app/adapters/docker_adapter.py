@@ -47,7 +47,7 @@ class DockerAdapter:
             image=image,
             name=name,
             command="gateway run",
-            ports={"8642/tcp": ("0.0.0.0", port)},
+            ports={"8642/tcp": ("127.0.0.1", port)},
             volumes={data_dir: {"bind": "/opt/data", "mode": "rw"}},
             mem_limit=f"{mem_limit_mb}m",
             memswap_limit=f"{mem_limit_mb * 2}m",

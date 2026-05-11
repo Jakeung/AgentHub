@@ -40,7 +40,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
         <div class="bg-circle c3"></div>
       </div>
       <div class="hero-content">
-        <h1>你的专属 AI 智能体管理平台</h1>
+        <h1>你的专属 AI 助手管理平台</h1>
         <p class="hero-sub">一站式部署和管理 Hermes AI Agent，轻松对接多平台消息渠道</p>
         <div class="hero-actions">
           <button class="btn-primary" @click="scrollToContact">获取邀请码</button>

@@ -9,6 +9,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.LOG_LEVEL == "DEBUG",
     connect_args={"check_same_thread": False},
+    pool_pre_ping=True,
 )
 
 

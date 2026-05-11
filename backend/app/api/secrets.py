@@ -1,5 +1,6 @@
 """User secrets (API keys) management API."""
 import httpx
+import logging
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -12,6 +13,8 @@ from app.services.secret_service import encrypt_key, key_suffix, mask_key, decry
 from app.core.response import success, page_data, get_client_ip
 from app.core.exceptions import BusinessError
 from app.services.audit_service import log_operation
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/secrets", tags=["secrets"])
 
@@ -147,11 +150,12 @@ async def activate_secret(
     inst_result = await db.execute(
         select(AgentInstance).where(AgentInstance.owner_user_id == user_id, AgentInstance.status != "deleted")
     )
-    inst = inst_result.scalar_one_or_none()
-    if inst:
+    instances = inst_result.scalars().all()
+    if instances:
         api_key = decrypt_key(secret.encrypted_key)
         base_url = PROVIDER_BASE_URLS.get(secret.provider, "")
-        await update_instance_llm_config(db, inst, secret.provider, api_key, secret.model_name or "", base_url)
+        for inst in instances:
+            await update_instance_llm_config(db, inst, secret.provider, api_key, secret.model_name or "", base_url)
 
     return success(None)
 
@@ -224,5 +228,6 @@ async def list_available_models(
                 models = [m["id"] for m in data.get("data", [])]
                 return success(models)
             return success([])
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to fetch models from {base_url}: {e}")
         return success([])

@@ -94,7 +94,9 @@ async def _build_llm_env(db: AsyncSession) -> dict:
 
 async def allocate_port(db: AsyncSession) -> int:
     """Find first available port not used in DB or by Docker containers."""
-    result = await db.execute(select(AgentInstance.port))
+    result = await db.execute(
+        select(AgentInstance.port).where(AgentInstance.status != "deleted")
+    )
     db_ports = {row[0] for row in result.all()}
 
     try:
@@ -278,7 +280,10 @@ async def start_instance(db: AsyncSession, instance: AgentInstance):
                 else:
                     host_data_dir = abs_data_dir
 
-                env = json.loads(instance.env_config) if instance.env_config else {}
+                try:
+                    env = json.loads(instance.env_config) if instance.env_config else {}
+                except (json.JSONDecodeError, TypeError):
+                    env = {}
 
                 llm_env = await _build_llm_env(db)
 
@@ -509,7 +514,10 @@ async def upgrade_instance(db: AsyncSession, instance: AgentInstance):
         else:
             host_data_dir = abs_data_dir
 
-        env = json.loads(instance.env_config) if instance.env_config else {}
+        try:
+            env = json.loads(instance.env_config) if instance.env_config else {}
+        except (json.JSONDecodeError, TypeError):
+            env = {}
         llm_env = await _build_llm_env(db)
 
         container_id = await asyncio.wait_for(

@@ -85,7 +85,10 @@ router.beforeEach(async (to, _from, next) => {
   // Not logged in — try to restore session
   if (!userStore.isLoggedIn) {
     try {
-      await userStore.fetchMe()
+      await Promise.race([
+        userStore.fetchMe(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+      ])
     } catch {
       return next('/login')
     }

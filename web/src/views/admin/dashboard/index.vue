@@ -166,7 +166,7 @@ function initCharts() {
   if (!data.value) return
 
   // Instance status pie
-  if (statusChartRef.value) {
+  if (statusChartRef.value && data.value.instance_status) {
     const chart = echarts.init(statusChartRef.value)
     charts.push(chart)
     const statusData = Object.entries(data.value.instance_status).map(([name, value]) => ({
@@ -182,7 +182,7 @@ function initCharts() {
   }
 
   // Token trend line
-  if (tokenChartRef.value) {
+  if (tokenChartRef.value && data.value.token_trend?.length) {
     const chart = echarts.init(tokenChartRef.value)
     charts.push(chart)
     const trend = data.value.token_trend
@@ -196,7 +196,7 @@ function initCharts() {
   }
 
   // Activity trend bar
-  if (activityChartRef.value) {
+  if (activityChartRef.value && data.value.activity_trend?.length) {
     const chart = echarts.init(activityChartRef.value)
     charts.push(chart)
     const trend = data.value.activity_trend
@@ -214,7 +214,7 @@ function initCharts() {
   }
 
   // Model usage bar (horizontal)
-  if (modelChartRef.value && data.value.model_usage.length) {
+  if (modelChartRef.value && data.value.model_usage?.length) {
     const chart = echarts.init(modelChartRef.value)
     charts.push(chart)
     const usage = [...data.value.model_usage].reverse()

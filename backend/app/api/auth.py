@@ -88,7 +88,10 @@ async def login(request: Request, req: LoginRequest, db: AsyncSession = Depends(
 
     # Update last login
     user.last_login_at = datetime.now(timezone.utc)
-    await log_operation(db, user_id=user.id, action="auth:login", target_type="user", target_id=user.id, detail={"username": user.username}, ip_address=get_client_ip(request))
+    try:
+        await log_operation(db, user_id=user.id, action="auth:login", target_type="user", target_id=user.id, detail={"username": user.username}, ip_address=get_client_ip(request))
+    except Exception:
+        pass
     await db.commit()
 
     # Create JWT
@@ -116,7 +119,7 @@ async def login(request: Request, req: LoginRequest, db: AsyncSession = Depends(
         value=token,
         httponly=True,
         secure=use_secure,
-        samesite="lax",
+        samesite="strict",
         path="/",
         max_age=86400,
     )

@@ -60,7 +60,11 @@ async def save_message(
     conv_result = await db.execute(
         select(Conversation).where(Conversation.id == conversation_id)
     )
-    conv = conv_result.scalar_one()
+    conv = conv_result.scalar_one_or_none()
+    if not conv:
+        await db.commit()
+        await db.refresh(msg)
+        return msg
     conv.message_count = (conv.message_count or 0) + 1
 
     # Auto-title from first user message

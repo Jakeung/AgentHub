@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
+from urllib.parse import urlparse
+import ipaddress
 import httpx
 import logging
 
@@ -23,6 +25,9 @@ ALLOWED_SETTING_KEYS = {
     "hermes_llm_api_key",
     "hermes_llm_base_url",
 }
+
+
+MASKED_SENTINEL = "****"
 
 
 class SettingUpdate(BaseModel):
@@ -65,7 +70,7 @@ async def update_settings(
         )
         existing = result.scalars().first()
         if existing:
-            if not item.value.startswith("****"):
+            if not item.value.startswith(MASKED_SENTINEL) or len(item.value) > 8:
                 existing.value = item.value
                 changed_keys.append(item.key)
             if item.description:
@@ -95,6 +100,25 @@ def _mask_value(key: str, value: str) -> str:
     return value
 
 
+def _validate_external_url(url: str):
+    """Reject URLs pointing to internal/private networks (SSRF protection)."""
+    parsed = urlparse(url)
+    if not parsed.scheme or parsed.scheme not in ("http", "https"):
+        raise BusinessError(-1, "仅支持 HTTP/HTTPS 协议")
+    hostname = parsed.hostname or ""
+    if not hostname:
+        raise BusinessError(-1, "URL 无效")
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        raise BusinessError(-1, "不允许访问本地地址")
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_private or addr.is_loopback or addr.is_link_local:
+            raise BusinessError(-1, "不允许访问内网地址")
+    except ValueError:
+        if hostname.endswith(".local") or hostname.endswith(".internal"):
+            raise BusinessError(-1, "不允许访问内网地址")
+
+
 @router.post("/test")
 async def test_llm_connection(db: AsyncSession = Depends(get_db)):
     provider = await get_setting(db, "hermes_llm_provider")
@@ -104,6 +128,8 @@ async def test_llm_connection(db: AsyncSession = Depends(get_db)):
 
     if not api_key or not base_url:
         raise BusinessError(-1, "请先保存 API Key 和 Base URL")
+
+    _validate_external_url(base_url)
 
     url = base_url.rstrip("/") + "/models"
     try:

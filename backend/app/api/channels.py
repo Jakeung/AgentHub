@@ -225,14 +225,20 @@ async def delete_channel(
 
 async def _get_user_instance(db: AsyncSession, user_id: int):
     result = await db.execute(
-        select(AgentInstance).where(AgentInstance.owner_user_id == user_id).limit(1)
+        select(AgentInstance)
+        .where(AgentInstance.owner_user_id == user_id, AgentInstance.status != "deleted")
+        .order_by(AgentInstance.id.desc())
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
 
 def _channel_to_dict(ch: InstanceChannelConfig) -> dict:
     """Return channel info with masked secrets."""
-    config = json.loads(decrypt_key(ch.config_encrypted))
+    try:
+        config = json.loads(decrypt_key(ch.config_encrypted))
+    except Exception:
+        config = {}
     schema = PLATFORM_SCHEMAS.get(ch.platform, {})
     secret_keys = {f["key"] for f in schema.get("fields", []) if f.get("secret")}
 
@@ -277,10 +283,18 @@ async def _sync_channels_to_container(db: AsyncSession, instance: AgentInstance)
 # --- WeChat QR Login Flow ---
 import httpx
 import asyncio
+import time
 
 ILINK_BASE_URL = "https://ilinkai.weixin.qq.com"
-# In-memory store for active QR sessions: user_id -> session_data
+QR_SESSION_TTL = 900  # 15 minutes
 _weixin_qr_sessions: dict[int, dict] = {}
+
+
+def _cleanup_expired_qr_sessions():
+    now = time.time()
+    expired = [uid for uid, s in _weixin_qr_sessions.items() if now - s.get("created_at", 0) > QR_SESSION_TTL]
+    for uid in expired:
+        _weixin_qr_sessions.pop(uid, None)
 
 
 @router.post("/weixin/qr-login")
@@ -289,7 +303,9 @@ async def weixin_qr_start(request: Request):
     user_id = request.state.user_id
 
     try:
-        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+        from app.core.config import get_settings
+        _ssl_verify = get_settings().ENVIRONMENT == "production"
+        async with httpx.AsyncClient(timeout=15.0, verify=_ssl_verify) as client:
             resp = await client.get(
                 f"{ILINK_BASE_URL}/ilink/bot/get_bot_qrcode?bot_type=3",
                 headers={
@@ -313,9 +329,11 @@ async def weixin_qr_start(request: Request):
                 qrcode_url = f"data:image/png;base64,{qrcode_url}"
 
             # Store session
+            _cleanup_expired_qr_sessions()
             _weixin_qr_sessions[user_id] = {
                 "qrcode": qrcode_value,
                 "base_url": ILINK_BASE_URL,
+                "created_at": time.time(),
             }
 
             return success({
@@ -339,7 +357,9 @@ async def weixin_qr_status(request: Request, db: AsyncSession = Depends(get_db))
     base_url = session["base_url"]
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        from app.core.config import get_settings
+        _ssl_verify = get_settings().ENVIRONMENT == "production"
+        async with httpx.AsyncClient(timeout=10.0, verify=_ssl_verify) as client:
             resp = await client.get(
                 f"{base_url}/ilink/bot/get_qrcode_status?qrcode={qrcode}",
                 headers={

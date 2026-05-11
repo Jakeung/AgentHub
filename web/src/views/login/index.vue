@@ -45,6 +45,10 @@ async function handleRegister() {
     ElMessage.warning('请填写必填项')
     return
   }
+  if (registerForm.password.length < 8) {
+    ElMessage.warning('密码至少8位')
+    return
+  }
   if (!registerForm.invitation_code) {
     ElMessage.warning('请输入邀请码')
     return
@@ -142,7 +146,7 @@ async function handleRegister() {
           <el-input v-model="registerForm.username" placeholder="3-50位字母、数字或下划线" size="large" />
         </el-form-item>
         <el-form-item label="密码" required>
-          <el-input v-model="registerForm.password" type="password" placeholder="至少6位" size="large" show-password />
+          <el-input v-model="registerForm.password" type="password" placeholder="至少8位" size="large" show-password />
         </el-form-item>
         <el-form-item label="邮箱（可选）">
           <el-input v-model="registerForm.email" placeholder="example@email.com" size="large" />

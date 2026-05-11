@@ -179,6 +179,9 @@ async def ws_chat(websocket: WebSocket, instance_id: int):
     try:
         while True:
             raw = await websocket.receive_text()
+            if len(raw) > 65536:
+                await websocket.send_json({"type": "error", "message": "消息过长（最大 64KB）"})
+                continue
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
@@ -231,8 +234,8 @@ async def ws_chat(websocket: WebSocket, instance_id: int):
         logger.info(f"WebSocket disconnected: user={user_id} instance={instance_id}")
     except Exception as e:
         ws_manager.disconnect(instance_id, user_id)
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error: {e}", exc_info=True)
         try:
-            await websocket.send_json({"type": "error", "message": str(e)[:200]})
+            await websocket.send_json({"type": "error", "message": "服务内部错误"})
         except Exception:
             pass

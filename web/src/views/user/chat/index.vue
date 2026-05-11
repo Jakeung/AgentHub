@@ -345,6 +345,7 @@ function scrollToBottom() {
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
 function startHeartbeat() {
+  stopHeartbeat()
   heartbeatTimer = setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ping' }))

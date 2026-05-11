@@ -4,6 +4,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from starlette.middleware.gzip import GZipMiddleware
@@ -67,7 +68,9 @@ cors_origins = [
 ] if settings.CORS_ORIGINS else []
 
 # Validate no wildcard in production
-if "*" in cors_origins and settings.CORS_ORIGINS:
+if "*" in cors_origins:
+    if settings.ENVIRONMENT == "production":
+        raise RuntimeError("Wildcard CORS ('*') is not allowed in production. Set CORS_ORIGINS to specific origins.")
     logger.warning("Wildcard CORS detected - this should not be used in production")
 
 app.add_middleware(
@@ -90,6 +93,22 @@ async def business_error_handler(request: Request, exc: BusinessError):
     return JSONResponse(
         status_code=200,
         content={"code": exc.code, "message": exc.message, "data": None},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    msgs = []
+    for err in exc.errors():
+        field = err.get("loc", ["", ""])[-1]
+        msg = err.get("msg", "")
+        if "at least" in msg and "characters" in msg:
+            msgs.append(f"{field}: {msg}")
+        else:
+            msgs.append(f"{field}: 格式不正确")
+    return JSONResponse(
+        status_code=200,
+        content={"code": -4, "message": "; ".join(msgs) if msgs else "请求参数错误", "data": None},
     )
 
 

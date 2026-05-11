@@ -92,8 +92,8 @@ async def create_user(
 ):
     if len(req.username) < 3:
         raise BusinessError(-4, "用户名至少3位")
-    if len(req.password) < 6:
-        raise BusinessError(-4, "密码至少6位")
+    if len(req.password) < 8:
+        raise BusinessError(-4, "密码至少8位")
 
     dup = await db.execute(select(SysUser).where(SysUser.username == req.username))
     if dup.scalar_one_or_none():
@@ -211,8 +211,8 @@ async def reset_password(
     db: AsyncSession = Depends(get_db),
 ):
     user = await _get_user(db, user_id)
-    if len(req.new_password) < 6:
-        raise BusinessError(-4, "密码至少6位")
+    if len(req.new_password) < 8:
+        raise BusinessError(-4, "密码至少8位")
     user.password_hash = hash_password(req.new_password)
     await log_operation(db, user_id=request.state.user_id, action="admin:user:reset_password", target_type="user", target_id=user_id, ip_address=get_client_ip(request))
     await db.commit()
