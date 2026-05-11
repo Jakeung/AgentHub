@@ -22,6 +22,8 @@ data/
 # Docker images (large files)
 images/
 
+doc/
+
 # IDE
 .vscode/
 .idea/
