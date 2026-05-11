@@ -4,7 +4,6 @@ import json
 import os
 import secrets
 import logging
-from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from urllib.parse import urlparse
@@ -551,7 +550,7 @@ async def upgrade_instance(db: AsyncSession, instance: AgentInstance):
 
 
 async def delete_instance(db: AsyncSession, instance: AgentInstance):
-    """Soft delete instance with port recovery after cooldown."""
+    """Delete instance and remove database record."""
     _check_transition(instance, "delete")
     try:
         docker = DockerAdapter()
@@ -560,11 +559,10 @@ async def delete_instance(db: AsyncSession, instance: AgentInstance):
     except Exception as e:
         logger.warning(f"Container remove failed (ignored): {e}")
 
-    # Soft delete: mark as deleted with timestamp, preserve data for recovery
-    instance.status = "deleted"
-    instance.deleted_at = datetime.now(timezone.utc)
+    instance_name = instance.name
+    await db.delete(instance)
     await db.commit()
-    logger.info(f"Instance {instance.name} soft-deleted")
+    logger.info(f"Instance {instance_name} deleted")
 
 
 def get_instance_stats(instance: AgentInstance) -> dict | None:
