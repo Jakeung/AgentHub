@@ -84,6 +84,19 @@ services:
         max-file: "10"
         labels: "service=agenthub-backend"
 
+  # Camofox — shared anti-detection browser
+  camofox:
+    image: joincamofox/camofox-browser:latest
+    container_name: agenthub-camofox
+    restart: unless-stopped
+    expose:
+      - "9377"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
 secrets:
   jwt_secret:
     environment: JWT_SECRET

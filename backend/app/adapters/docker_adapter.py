@@ -42,6 +42,7 @@ class DockerAdapter:
             env.setdefault("API_SERVER_KEY", api_server_key)
         if llm_env:
             env.update(llm_env)
+        env.setdefault("CAMOFOX_URL", "http://agenthub-camofox:9377")
 
         container = self.client.containers.create(
             image=image,
