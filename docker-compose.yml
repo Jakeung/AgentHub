@@ -86,9 +86,11 @@ services:
 
   # Camofox — shared anti-detection browser
   camofox:
-    image: joincamofox/camofox-browser:latest
+    image: ghcr.io/jo-inc/camofox-browser:latest
     container_name: agenthub-camofox
     restart: unless-stopped
+    profiles:
+      - camofox
     expose:
       - "9377"
     logging:
