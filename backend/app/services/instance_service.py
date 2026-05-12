@@ -646,6 +646,8 @@ async def delete_instance(db: AsyncSession, instance: AgentInstance):
         docker = DockerAdapter()
         if instance.container_id:
             docker.remove_container(instance.container_id)
+        elif instance.container_name:
+            docker.remove_container(instance.container_name)
     except Exception as e:
         logger.warning(f"Container remove failed (ignored): {e}")
 
