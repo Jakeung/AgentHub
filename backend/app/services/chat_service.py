@@ -139,6 +139,13 @@ async def stream_chat(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
         )
+        if prompt_tokens > 0 or completion_tokens > 0:
+            from app.services.usage_service import record_usage
+            model_name = model or "hermes"
+            await record_usage(
+                db, conversation.user_id, instance.id, model_name,
+                prompt_tokens, completion_tokens,
+            )
 
 
 async def list_conversations(

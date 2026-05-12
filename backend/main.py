@@ -28,6 +28,9 @@ from app.api import admin_dashboard
 from app.api import channels
 from app.api import tools
 from app.api import skills
+from app.api import admin_tools
+from app.api import usage
+from app.api import admin_usage
 
 settings = get_settings()
 
@@ -138,6 +141,9 @@ app.include_router(admin_dashboard.router)
 app.include_router(channels.router)
 app.include_router(tools.router)
 app.include_router(skills.router)
+app.include_router(admin_tools.router)
+app.include_router(usage.router)
+app.include_router(admin_usage.router)
 
 
 @app.get("/api/health")

@@ -15,6 +15,8 @@ const menus = [
   { path: '/admin/instances', title: '实例管理', icon: 'Monitor' },
   { path: '/admin/users', title: '用户管理', icon: 'User' },
   { path: '/admin/invitations', title: '邀请码', icon: 'Ticket' },
+  { path: '/admin/tools', title: '工具管理', icon: 'SetUp' },
+  { path: '/admin/usage', title: '用量统计', icon: 'DataLine' },
   { path: '/admin/audit', title: '审计日志', icon: 'Document' },
   { path: '/admin/settings', title: '系统设置', icon: 'Setting' },
 ]
@@ -24,6 +26,8 @@ const pageTitle: Record<string, string> = {
   '/admin/instances': '实例管理',
   '/admin/users': '用户管理',
   '/admin/invitations': '邀请码管理',
+  '/admin/tools': '工具管理',
+  '/admin/usage': '用量统计',
   '/admin/audit': '审计日志',
   '/admin/settings': '系统设置',
 }

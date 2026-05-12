@@ -35,6 +35,10 @@ async function handleLogout() {
           </div>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item @click="router.push('/user/usage')">
+                <el-icon><DataLine /></el-icon>
+                用量统计
+              </el-dropdown-item>
               <el-dropdown-item @click="handleLogout">
                 <el-icon><SwitchButton /></el-icon>
                 退出登录

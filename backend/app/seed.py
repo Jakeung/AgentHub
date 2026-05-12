@@ -14,6 +14,7 @@ from app.models.conversation import Conversation, Message
 from app.models.system_setting import SystemSetting
 from app.models.invitation import InvitationCode
 from app.models.tool import ToolRegistry, InstanceToolConfig, InstanceSkillConfig
+from app.models.usage import DailyUsageStats, ModelPricing
 from app.services.auth_service import hash_password
 
 
@@ -291,6 +292,17 @@ async def seed():
             )
             if not existing.scalar_one_or_none():
                 db.add(ToolRegistry(**t))
+
+        # Default model pricing
+        default_pricing = [
+            {"model_name": "deepseek-chat", "provider": "deepseek", "input_price_per_1k": 0.001, "output_price_per_1k": 0.002, "currency": "CNY"},
+        ]
+        for p in default_pricing:
+            existing = await db.execute(
+                select(ModelPricing).where(ModelPricing.model_name == p["model_name"])
+            )
+            if not existing.scalar_one_or_none():
+                db.add(ModelPricing(**p))
 
         await db.commit()
         print("✅ Seed data initialized.")

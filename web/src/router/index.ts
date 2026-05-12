@@ -22,6 +22,11 @@ const routes: RouteRecordRaw[] = [
         name: 'user-home',
         component: () => import('../views/user/index.vue'),
       },
+      {
+        path: 'usage',
+        name: 'user-usage',
+        component: () => import('../views/user/usage/index.vue'),
+      },
     ],
   },
   // Admin layout
@@ -59,6 +64,16 @@ const routes: RouteRecordRaw[] = [
         path: 'invitations',
         name: 'admin-invitations',
         component: () => import('../views/admin/invitations/index.vue'),
+      },
+      {
+        path: 'tools',
+        name: 'admin-tools',
+        component: () => import('../views/admin/tools/index.vue'),
+      },
+      {
+        path: 'usage',
+        name: 'admin-usage',
+        component: () => import('../views/admin/usage/index.vue'),
       },
     ],
   },
