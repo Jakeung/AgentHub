@@ -62,7 +62,7 @@ class DockerAdapter:
             detach=True,
             security_opt=["no-new-privileges:true"],
             cap_drop=["ALL"],
-            cap_add=["NET_RAW"],
+            cap_add=["NET_RAW", "SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"],
             tmpfs={"/tmp": "size=256m"},
         )
         return container.id
