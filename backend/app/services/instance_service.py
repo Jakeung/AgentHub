@@ -276,6 +276,19 @@ async def write_hermes_config_with_tools(db: AsyncSession, instance: AgentInstan
         with open(config_path, "w") as f:
             f.write(config_content)
         logger.info(f"Wrote config.yaml for {instance.container_name}")
+    except PermissionError:
+        try:
+            docker = DockerAdapter()
+            import base64
+            encoded = base64.b64encode(config_content.encode()).decode()
+            await asyncio.to_thread(
+                docker.exec_in_container,
+                instance.container_id,
+                f"echo '{encoded}' | base64 -d > /opt/data/config.yaml"
+            )
+            logger.info(f"Wrote config.yaml for {instance.container_name} via docker exec")
+        except Exception as e2:
+            logger.warning(f"Failed to write config.yaml for {instance.container_name}: {e2}")
     except Exception as e:
         logger.warning(f"Failed to write config.yaml for {instance.container_name}: {e}")
 
