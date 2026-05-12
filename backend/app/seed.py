@@ -95,10 +95,45 @@ DEFAULT_TOOLS = [
         "description": "网络搜索和网页内容提取（web_search + web_extract）",
         "category": "search",
         "icon": "search",
-        "config_schema": json.dumps({"type": "object", "properties": {}}),
+        "config_schema": json.dumps({
+            "type": "object",
+            "properties": {
+                "WEB_BACKEND": {
+                    "type": "string",
+                    "title": "搜索引擎",
+                    "description": "选择搜索后端",
+                    "enum": ["tavily", "exa", "firecrawl", "parallel"],
+                },
+                "TAVILY_API_KEY": {
+                    "type": "string",
+                    "title": "Tavily API Key",
+                    "description": "从 tavily.com 获取（1000次/月免费）",
+                    "backend": "tavily",
+                },
+                "EXA_API_KEY": {
+                    "type": "string",
+                    "title": "Exa API Key",
+                    "description": "从 exa.ai 获取（1000次/月免费）",
+                    "backend": "exa",
+                },
+                "FIRECRAWL_API_KEY": {
+                    "type": "string",
+                    "title": "Firecrawl API Key",
+                    "description": "从 firecrawl.dev 获取（500次/月免费）",
+                    "backend": "firecrawl",
+                },
+                "PARALLEL_API_KEY": {
+                    "type": "string",
+                    "title": "Parallel API Key",
+                    "description": "从 parallel.ai 获取",
+                    "backend": "parallel",
+                },
+            },
+            "required": ["WEB_BACKEND"],
+        }),
         "default_config": json.dumps({}),
         "is_active": True,
-        "requires_api_key": False,
+        "requires_api_key": True,
         "sort_order": 1,
     },
     {

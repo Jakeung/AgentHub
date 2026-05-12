@@ -631,9 +631,20 @@ defineExpose({ selectedModel, onOpen })
               <el-switch v-model="tool.enabled" size="small" @change="onToolToggle" />
             </div>
             <div v-if="tool.enabled && tool.requires_api_key && tool.config_schema?.properties" class="tool-config-fields">
-              <div v-for="(field, key) in tool.config_schema.properties" :key="key" class="tool-config-field">
+              <div v-for="(field, key) in tool.config_schema.properties" :key="key" class="tool-config-field"
+                v-show="!field.backend || field.backend === toolConfigs[tool.name]?.['WEB_BACKEND']">
                 <label class="selector-label">{{ field.title || key }}</label>
+                <select
+                  v-if="field.enum"
+                  :value="toolConfigs[tool.name]?.[key as string] || ''"
+                  @change="onToolConfigInput(tool.name, key as string, ($event.target as HTMLSelectElement).value)"
+                  class="form-input"
+                >
+                  <option value="" disabled>{{ field.description || '请选择' }}</option>
+                  <option v-for="opt in field.enum" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
                 <input
+                  v-else
                   :value="toolConfigs[tool.name]?.[key as string] || ''"
                   @input="onToolConfigInput(tool.name, key as string, ($event.target as HTMLInputElement).value)"
                   type="password"

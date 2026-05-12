@@ -270,7 +270,7 @@ async def _write_hermes_config(instance: AgentInstance):
 
 
 async def write_hermes_config_with_tools(db: AsyncSession, instance: AgentInstance):
-    """Write config.yaml with model config + platform_toolsets."""
+    """Write config.yaml with model config + platform_toolsets, and tool env vars to .env."""
     from app.models.system_setting import SystemSetting
     from app.models.tool import InstanceToolConfig
 
@@ -296,11 +296,28 @@ async def write_hermes_config_with_tools(db: AsyncSession, instance: AgentInstan
             InstanceToolConfig.enabled == True,
         )
     )
-    enabled_tools = [c.tool_name for c in result.scalars().all()]
+    enabled_tool_configs = result.scalars().all()
+    enabled_tools = [c.tool_name for c in enabled_tool_configs]
 
     if enabled_tools:
         toolsets_str = ", ".join(enabled_tools)
         config_content += f"\nplatform_toolsets:\n  cli: [{toolsets_str}]\n"
+
+    tool_env_vars = {}
+    for tc in enabled_tool_configs:
+        if not tc.config:
+            continue
+        try:
+            cfg = json.loads(tc.config) if isinstance(tc.config, str) else tc.config
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for k, v in cfg.items():
+            if not v:
+                continue
+            if k == "WEB_BACKEND":
+                config_content += f"\nweb:\n  backend: {v}\n"
+            elif k.upper() == k and "_" in k:
+                tool_env_vars[k] = v
 
     try:
         config_path = os.path.join(instance.data_dir, "config.yaml")
@@ -322,6 +339,49 @@ async def write_hermes_config_with_tools(db: AsyncSession, instance: AgentInstan
             logger.warning(f"Failed to write config.yaml for {instance.container_name}: {e2}")
     except Exception as e:
         logger.warning(f"Failed to write config.yaml for {instance.container_name}: {e}")
+
+    if tool_env_vars and instance.container_id:
+        try:
+            await _append_tool_env_vars(instance, tool_env_vars)
+        except Exception as e:
+            logger.warning(f"Failed to write tool env vars for {instance.container_name}: {e}")
+
+
+async def _append_tool_env_vars(instance: AgentInstance, tool_env_vars: dict):
+    """Append tool API keys to container .env via docker exec."""
+    import base64
+    docker = DockerAdapter()
+
+    try:
+        current_env = await asyncio.to_thread(
+            docker.exec_in_container,
+            instance.container_id,
+            "cat /opt/data/.env 2>/dev/null || echo ''"
+        )
+        current_env = current_env.strip()
+    except Exception:
+        current_env = ""
+
+    existing_lines = []
+    tool_keys = set(tool_env_vars.keys())
+    for line in current_env.split("\n"):
+        if not line.strip() or line.strip().startswith("#"):
+            continue
+        key = line.split("=", 1)[0] if "=" in line else ""
+        if key not in tool_keys:
+            existing_lines.append(line)
+
+    for k, v in tool_env_vars.items():
+        existing_lines.append(f"{k}={v}")
+
+    env_content = "\n".join(existing_lines) + "\n"
+    encoded = base64.b64encode(env_content.encode()).decode()
+    await asyncio.to_thread(
+        docker.exec_in_container,
+        instance.container_id,
+        f"echo '{encoded}' | base64 -d > /opt/data/.env"
+    )
+    logger.info(f"Updated tool env vars in .env for {instance.container_name}")
 
 
 async def start_instance(db: AsyncSession, instance: AgentInstance):
@@ -477,7 +537,6 @@ async def update_instance_llm_config(
     }
     env_key = provider_env_keys.get(provider, "OPENAI_API_KEY")
     env_lines.append(f"{env_key}={api_key}")
-    env_content = "\n".join(env_lines) + "\n"
 
     config_lines = [
         "model:",
@@ -496,12 +555,28 @@ async def update_instance_llm_config(
             result = await tool_db.execute(
                 select(ITC).where(ITC.instance_id == instance.id, ITC.enabled == True)
             )
-            enabled_tools = [c.tool_name for c in result.scalars().all()]
+            enabled_tool_configs = result.scalars().all()
+            enabled_tools = [c.tool_name for c in enabled_tool_configs]
         if enabled_tools:
             toolsets_str = ", ".join(enabled_tools)
             config_content += f"\nplatform_toolsets:\n  cli: [{toolsets_str}]\n"
+        for tc in enabled_tool_configs:
+            if not tc.config:
+                continue
+            try:
+                cfg = json.loads(tc.config) if isinstance(tc.config, str) else tc.config
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for k, v in cfg.items():
+                if not v:
+                    continue
+                if k == "WEB_BACKEND":
+                    config_content += f"\nweb:\n  backend: {v}\n"
+                elif k.upper() == k and "_" in k:
+                    env_lines.append(f"{k}={v}")
+        env_content = "\n".join(env_lines) + "\n"
     except Exception:
-        pass
+        env_content = "\n".join(env_lines) + "\n"
 
     try:
         with open(os.path.join(data_dir, ".env"), "w") as f:
