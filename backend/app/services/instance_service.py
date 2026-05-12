@@ -129,6 +129,34 @@ async def generate_container_name(db: AsyncSession, username: str) -> str:
     return name
 
 
+async def _pre_write_config(db: AsyncSession, data_dir: str):
+    """Write config.yaml into data dir before container is created."""
+    from app.models.system_setting import SystemSetting
+
+    sys_settings = {}
+    try:
+        result = await db.execute(select(SystemSetting))
+        for s in result.scalars().all():
+            sys_settings[s.key] = s.value
+    except Exception:
+        pass
+
+    model_name = sys_settings.get("hermes_llm_model", "deepseek-chat")
+    provider = sys_settings.get("hermes_llm_provider", "custom")
+    base_url = sys_settings.get("hermes_llm_base_url", "")
+
+    config_content = f'model:\n  default: "{model_name}"\n  provider: "{provider}"\n'
+    if base_url:
+        config_content += f'  base_url: "{base_url}"\n'
+
+    try:
+        config_path = os.path.join(data_dir, "config.yaml")
+        with open(config_path, "w") as f:
+            f.write(config_content)
+    except Exception as e:
+        logger.warning(f"Pre-write config.yaml failed: {e}")
+
+
 async def create_instance(
     db: AsyncSession,
     user_id: int,
@@ -175,6 +203,9 @@ async def create_instance(
 
             # 4. Build LLM environment variables from system settings
             llm_env = await _build_llm_env(db)
+
+            # 4b. Pre-write config.yaml before container exists
+            await _pre_write_config(db, data_dir)
 
             # 5. Create DB record (within transaction)
             instance = AgentInstance(
@@ -330,15 +361,14 @@ async def start_instance(db: AsyncSession, instance: AgentInstance):
                 )
                 instance.container_id = container_id
 
+            await _write_hermes_config(instance)
+
             await asyncio.wait_for(
                 asyncio.to_thread(docker.start_container, instance.container_id),
                 timeout=30,
             )
             instance.status = "running"
             instance.health_status = "healthy"
-
-            # Write config.yaml (synchronous, before hermes fully initializes)
-            await _write_hermes_config(instance)
 
             break
 
