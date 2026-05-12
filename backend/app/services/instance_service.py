@@ -153,7 +153,6 @@ async def _pre_write_config(db: AsyncSession, data_dir: str):
         config_path = os.path.join(data_dir, "config.yaml")
         with open(config_path, "w") as f:
             f.write(config_content)
-        os.chown(config_path, 10000, 10000)
     except Exception as e:
         logger.warning(f"Pre-write config.yaml failed: {e}")
 
@@ -191,12 +190,10 @@ async def create_instance(
             )
             try:
                 os.makedirs(data_dir, exist_ok=True)
-                os.chown(data_dir, 10000, 10000)
             except OSError as e:
                 logger.warning(f"Cannot create data dir {data_dir}: {e}")
                 data_dir = os.path.abspath(os.path.join("./data/hermes", container_name))
                 os.makedirs(data_dir, exist_ok=True)
-                os.chown(data_dir, 10000, 10000)
 
             # Host-side path for Docker volume mounts
             if settings.HOST_DATA_ROOT:

@@ -46,7 +46,7 @@ class DockerAdapter:
         container = self.client.containers.create(
             image=image,
             name=name,
-            command="gateway run",
+            command=["sh", "-c", "chown -R hermes:hermes /opt/data 2>/dev/null; exec gateway run"],
             ports={"8642/tcp": ("127.0.0.1", port)},
             volumes={
                 data_dir: {"bind": "/opt/data", "mode": "rw"},
