@@ -638,9 +638,10 @@ defineExpose({ selectedModel, onOpen })
                   v-if="field.enum"
                   :value="toolConfigs[tool.name]?.[key as string] || ''"
                   @change="onToolConfigInput(tool.name, key as string, ($event.target as HTMLSelectElement).value)"
-                  class="form-input"
+                  class="form-select"
+                  style="width:100%;padding:8px 12px;cursor:pointer;-webkit-appearance:menulist;appearance:menulist"
                 >
-                  <option value="" disabled>{{ field.description || '请选择' }}</option>
+                  <option value="" disabled selected>{{ field.description || '请选择' }}</option>
                   <option v-for="opt in field.enum" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
                 <input
