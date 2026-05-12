@@ -62,6 +62,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./images:/app/images:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
 
     secrets:
       - jwt_secret

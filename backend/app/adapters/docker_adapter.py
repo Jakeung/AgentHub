@@ -48,7 +48,10 @@ class DockerAdapter:
             name=name,
             command="gateway run",
             ports={"8642/tcp": ("127.0.0.1", port)},
-            volumes={data_dir: {"bind": "/opt/data", "mode": "rw"}},
+            volumes={
+                data_dir: {"bind": "/opt/data", "mode": "rw"},
+                "/etc/localtime": {"bind": "/etc/localtime", "mode": "ro"},
+            },
             mem_limit=f"{mem_limit_mb}m",
             memswap_limit=f"{mem_limit_mb * 2}m",
             nano_cpus=int(cpu_limit * 1e9),
